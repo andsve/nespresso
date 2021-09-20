@@ -13,3 +13,9 @@
 7. Code: CPU opcodes
 8. Code: Faking PPU?
 9. Code: Presenting memory
+10. Extra: Colors?
+
+
+## Simplifications(?)
+- Ignore mappers
+- Ignore mirroring?

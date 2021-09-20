@@ -1,0 +1,6 @@
+-I/usr/lib/clang/$clang_version/include
+-I/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk/usr/include/
+-Iinclude
+-Ithirdparty/minifb/include/
+-Wall
+-Werror
