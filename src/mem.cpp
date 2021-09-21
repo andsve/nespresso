@@ -158,12 +158,9 @@ uint8_t nsp::handle_memmap_reg_write(emu_t &emu, uint16_t addr, uint16_t data, b
 {
     *handled = false;
 
-    if (addr >= 0x2000 && addr <= 0x2007) {
+    if ((addr >= 0x2000 && addr <= 0x2007) || addr == 0x4014) {
         *handled = true;
         return ppu_reg_write(emu, addr, data);
-    } else if (addr == 0x4014) { // OAMDMA
-        *handled = true;
-        LOG_D("Unhandled OAMDMA write!");
     } else if (addr == 0x4016 || addr == 0x4017) {
         *handled = true;
         LOG_D("Unhandled Joypads write!");
@@ -176,16 +173,36 @@ uint8_t nsp::handle_memmap_reg_read(emu_t &emu, uint16_t addr, bool *handled, bo
 {
     *handled = false;
 
-    if (addr >= 0x2000 && addr <= 0x2007) {
+    if ((addr >= 0x2000 && addr <= 0x2007) || addr == 0x4014) {
         *handled = true;
         return ppu_reg_read(emu, addr, peek);
-    } else if (addr == 0x4014) {
-        *handled = true;
-        LOG_D("Unhandled OAMDMA read!");
     } else if (addr == 0x4016 || addr == 0x4017) {
         LOG_D("Unhandled Joypads read!");
         *handled = true;
         return 0x40;
+    }
+
+    return 0x0;
+}
+
+uint8_t* nsp::dma_ptr(emu_t &emu, uint16_t addr)
+{
+    cpu_t& cpu = emu.cpu;
+    if (addr < 0x0100)
+    {
+        return (uint8_t*)&cpu.ram[addr];
+    } else if (addr < 0x0200) {
+        return (uint8_t*)&cpu.stack[addr - 0x0100];
+    } else if (addr < 0x4000) {
+        return (uint8_t*)&cpu.ram[addr - 0x0100];
+    } else if (addr < 0x6000) {
+        // TODO Fix I/O reg read and mirroring
+    } else if (addr < 0x8000) {
+        // TODO Fix save RAM read
+    } else if (addr < 0xC000) {
+        return (uint8_t*)&cpu.prgrom_lower[addr - 0x8000];
+    } else {
+        return (uint8_t*)&cpu.prgrom_upper[addr - 0xC000];
     }
 
     return 0x0;

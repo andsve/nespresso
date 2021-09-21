@@ -93,6 +93,7 @@ namespace nsp
         uint8_t ppustatus;
         uint8_t ppuaddr[2];
         uint8_t ppuaddr_msb;
+        uint8_t oamaddr;
 
         // rendering pointers/scanline
         uint16_t x, y;
@@ -100,6 +101,7 @@ namespace nsp
         // VRAM
         uint8_t vram[0x800]; // 2kb vram
         uint8_t palette[0xFF];
+        uint8_t oam[64*4];
 
         // Mapped CHR ROM
         uint8_t* chr_rom;
@@ -141,6 +143,7 @@ namespace nsp
     uint8_t handle_memmap_reg_write(emu_t &emu, uint16_t addr, uint16_t data, bool *handled);
     uint8_t ppu_reg_write(emu_t& emu, uint16_t addr, uint8_t data);
     uint8_t ppu_write_vram(emu_t& emu, uint16_t addr, uint8_t data);
+    uint8_t* dma_ptr(emu_t &emu, uint16_t addr);
 
     uint8_t handle_memmap_reg_read(emu_t &emu, uint16_t addr, bool *handled, bool peek);
     uint8_t ppu_reg_read(emu_t& emu, uint16_t addr, bool peek);

@@ -123,7 +123,9 @@ int main(int argc, char const *argv[])
                 if (nsp::RESULT_OK != result) return 1;
             }
 
+            // this aint how it actually works, but we just want to see pretty pixels
             dump_ppu_vram(emu);
+            dump_ppu_sprites(emu);
 
             if (show_debug)
             {

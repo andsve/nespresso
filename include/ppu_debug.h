@@ -4,5 +4,6 @@
 #include "nsp.h"
 
 void dump_ppu_vram(nsp::emu_t& emu);
+void dump_ppu_sprites(nsp::emu_t& emu);
 
 #endif /* PPU_DEBUG_H */

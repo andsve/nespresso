@@ -1,3 +1,5 @@
+#include <cstring>
+
 #include "nsp.h"
 #include "nsp_log.h"
 
@@ -32,6 +34,13 @@ uint32_t nsp::step_ppu(emu_t& emu, uint32_t max_cycles)
             ppu.y += 1;
             if (ppu.y > 261) {
                 ppu.y = 0;
+            }
+        }
+
+        // OAMADDR is set to 0 during each of ticks 257-320 (the sprite tile loading interval) of the pre-render and visible scanlines.
+        if (ppu.y == 261 || ppu.y == 340) {
+            if (ppu.x >= 256 && ppu.x <= 320) {
+                ppu.oamaddr = 0x0;
             }
         }
 
@@ -117,6 +126,19 @@ uint8_t nsp::ppu_reg_write(emu_t& emu, uint16_t addr, uint8_t data)
             ppu.ppumask = data;
             return t;
         }
+        case 0x2003:
+        {
+            uint8_t t = ppu.oamaddr;
+            ppu.oamaddr = data;
+            return t;
+        }
+        case 0x2004:
+        {
+            uint8_t t = ppu.oam[ppu.oamaddr];
+            ppu.oam[ppu.oamaddr] = data;
+            ppu.oamaddr++;
+            return t;
+        }
         case 0x2006:
         {
             uint8_t prev = 0x0;
@@ -143,6 +165,21 @@ uint8_t nsp::ppu_reg_write(emu_t& emu, uint16_t addr, uint8_t data)
             }
             *(uint16_t*)ppu.ppuaddr = addr;
             return 0x0;
+        }
+        case 0x4014:
+        {
+            // oam addr is 0xXX00 where XX is data
+            uint16_t full_oam_source_addr = (data << 8);
+            uint8_t* dma_data_ptr = dma_ptr(emu, full_oam_source_addr);
+            if (dma_data_ptr == 0x0) {
+                LOG_E("Invalid DMA data pointer!");
+                return 0x0;
+            }
+
+            // todo take care of cycles here, somehow!
+            // The CPU is suspended during the transfer, which will take 513 or 514 cycles after the $4014 write tick.
+            // (1 wait state cycle while waiting for writes to complete, +1 if on an odd CPU cycle, then 256 alternating read/write cycles.)
+            memcpy(&ppu.oam[ppu.oamaddr], dma_data_ptr, 256);
         }
         default:
             LOG_D("Unhandled PPU register write 0x%x to 0x%x!", data, addr);
@@ -233,6 +270,14 @@ uint8_t nsp::ppu_reg_read(emu_t &emu, uint16_t addr, bool peek)
             }
 
             return ppustatus_cpy;
+        }
+        case 0x2003:
+        {
+            return ppu.oamaddr;
+        }
+        case 0x2004:
+        {
+            return ppu.oam[ppu.oamaddr];
         }
         default:
             LOG_D("Unhandled PPU register read at 0x%x!", addr);
