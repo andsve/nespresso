@@ -55,7 +55,7 @@ nsp::RESULT nsp::load_rom_mem(const uint8_t* data, long int size, ines_rom_t& ro
     if (strncmp((const char*)data, _ines_magic, 4) != 0)
     {
         LOG_E("Invalid iNES file header, magic does not match.");
-        return RESULT_ROM_LOAD_ERROR;
+        return RESULT_ERROR;
     }
 
     // Get PRG and CHR sizes from header bytes 4 and 5
@@ -69,12 +69,12 @@ nsp::RESULT nsp::load_rom_mem(const uint8_t* data, long int size, ines_rom_t& ro
 
     if (rom.ines_v2) {
         LOG_E("No support for iNES v2!");
-        return RESULT_ROM_LOAD_ERROR;
+        return RESULT_ERROR;
     }
 
     if (rom.mapper_id != 0) {
         LOG_E("Only mapper 0 supported!");
-        return RESULT_ROM_LOAD_ERROR;
+        return RESULT_ERROR;
     }
 
     // Allocate memory to store PRG and CHR data from end of file
@@ -98,7 +98,7 @@ nsp::RESULT nsp::load_rom_mem(const uint8_t* data, long int size, ines_rom_t& ro
         data_ptr += chr_page_size;
     }
 
-    return RESULT_ROM_LOAD_OK;
+    return RESULT_OK;
 }
 
 nsp::RESULT nsp::load_rom_file(const char* filepath, ines_rom_t& rom)
@@ -110,7 +110,7 @@ nsp::RESULT nsp::load_rom_file(const char* filepath, ines_rom_t& rom)
 
     if (fp == 0x0) {
         LOG_E("Could not open iNES ROM file '%s', reason: %s", filepath, strerror(errno));
-        return RESULT_ROM_LOAD_ERROR;
+        return RESULT_ERROR;
     }
 
     fseek(fp, 0, SEEK_END);

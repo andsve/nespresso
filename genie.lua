@@ -15,13 +15,24 @@ solution "nespresso"
 
       links { "minifb_internal" }
 
+      buildoptions_cpp {
+          "-std=c++11",
+      }
+
       if os.get() == "windows" then
 
       elseif (os.get() == "macosx") then
-        buildoptions { "-Wall",
-                       "-Werror",
-                       "-fcolor-diagnostics"
-                     }
+         buildoptions { "-Wall",
+                        "-Werror",
+                        "-fcolor-diagnostics"
+                      }
+         links
+         {
+           "Cocoa.framework",
+           "QuartzCore.framework",
+           "Metal.framework",
+           "MetalKit.framework",
+         }
       end
 
       configuration "Debug"

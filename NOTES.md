@@ -19,3 +19,5 @@
 ## Simplifications(?)
 - Ignore mappers
 - Ignore mirroring?
+
+"If you're looking for a good first game for your new emulator, try anything made in 1984 or earlier, such as Donkey Kong."

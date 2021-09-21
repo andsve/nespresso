@@ -276,7 +276,6 @@ static uint8_t emu_line_cursor = 0;
 static uint32_t emu_ticks = 0;
 static uint8_t emu_instr = 0;
 static nsp::NES_OP_ADDR_MODES emu_addr_mode = nsp::Unused;
-static bool ppu_coords_swap = false;
 
 static void tmp_cb_debug_fetch_instr(uint8_t instruction, uint32_t ticks)
 {
@@ -357,25 +356,14 @@ static void tmp_cb_debug_mem_read(uint16_t addr1, uint16_t addr2, uint16_t data)
             break;
 
         default:
-            printf("Unknown addressing mode.");
+            LOG_E("Unknown addressing mode.");
             break;
     };
 }
 
 static void tmp_cb_debug_pre_exec()
 {
-    // if (ppu_coords_swap)
-    //     sprintf(emu_regstate, "A:%02X X:%02X Y:%02X P:%02X SP:%02X PPU:%3d,%3d CYC:%d", cpu->regs.A, cpu->regs.X, cpu->regs.Y, cpu->regs.P, cpu->regs.S, cpu.sys->ppu.x, cpu.sys->ppu.y, emu_ticks);
-    // else
-    //     sprintf(emu_regstate, "A:%02X X:%02X Y:%02X P:%02X SP:%02X PPU:%3d,%3d CYC:%d", cpu->regs.A, cpu->regs.X, cpu->regs.Y, cpu->regs.P, cpu->regs.S, cpu.sys->ppu.y, cpu.sys->ppu.x, emu_ticks);
-    // if (ppu_coords_swap)
-    //     sprintf(emu_regstate, "A:%02X X:%02X Y:%02X P:%02X SP:%02X PPU:%3d,%3d CYC:%d", cpu->regs.A, cpu->regs.X, cpu->regs.Y, cpu->regs.P, cpu->regs.S, 0, 0, emu_ticks);
-    // else
-    //     sprintf(emu_regstate, "A:%02X X:%02X Y:%02X P:%02X SP:%02X PPU:%3d,%3d CYC:%d", cpu->regs.A, cpu->regs.X, cpu->regs.Y, cpu->regs.P, cpu->regs.S, 0, 0, emu_ticks);
-    if (ppu_coords_swap)
-        sprintf(emu_regstate, "A:%02X X:%02X Y:%02X P:%02X SP:%02X PPU:---,--- CYC:%d", cpu->regs.A, cpu->regs.X, cpu->regs.Y, cpu->regs.P, cpu->regs.S, emu_ticks);
-    else
-        sprintf(emu_regstate, "A:%02X X:%02X Y:%02X P:%02X SP:%02X PPU:---,--- CYC:%d", cpu->regs.A, cpu->regs.X, cpu->regs.Y, cpu->regs.P, cpu->regs.S, emu_ticks);
+    sprintf(emu_regstate, "A:%02X X:%02X Y:%02X P:%02X SP:%02X PPU:%3d,%3d CYC:%d", cpu->regs.A, cpu->regs.X, cpu->regs.Y, cpu->regs.P, cpu->regs.S, emu->ppu.y, emu->ppu.x, emu_ticks);
 }
 
 static void tmp_cb_debug_post_exec()
@@ -429,9 +417,6 @@ static uint32_t print_diff(uint32_t line_number, const char* outbuffer, const ch
     int c = 0;
     uint32_t misses = 0;
     printf("L%04d ", line_number);
-    // while (c < 74
-    // while (c < 84
-    // while (c < 77
     while (true
         && outbuffer[c] != '\n'
         && logbuffer[c] != '\n'

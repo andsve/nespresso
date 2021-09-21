@@ -10,14 +10,6 @@ namespace nsp
     {
         RESULT_ERROR = 0,
         RESULT_OK = 1,
-
-        // ROM loading
-        RESULT_ROM_LOAD_OK,
-        RESULT_ROM_LOAD_ERROR,
-
-        // CPU
-
-        // EMU
     };
 
     struct ines_rom_t
@@ -85,18 +77,41 @@ namespace nsp
 
         uint8_t _4015;
 
-        // total cycles performed
+        // Total cycles performed
         uint32_t cycles;
 
-        // per instruciton
+        // Per instruction
         uint8_t page_wraps;
         uint8_t extra_cycles;
+    };
+
+    struct ppu_t
+    {
+        // most important registers to get up and running
+        uint8_t ppuctrl;
+        uint8_t ppumask;
+        uint8_t ppustatus;
+        uint8_t ppuaddr[2];
+        uint8_t ppuaddr_msb;
+
+        // rendering pointers/scanline
+        uint16_t x, y;
+
+        // VRAM
+        uint8_t vram[0x800]; // 2kb vram
+        uint8_t palette[0xFF];
+
+        // Mapped CHR ROM
+        uint8_t* chr_rom;
+
+        // Total cycles performed
+        uint32_t cycles;
     };
 
     struct emu_t
     {
         cpu_t cpu;
-        // ppu?
+        ppu_t ppu;
         // apu?
     };
 
@@ -105,8 +120,8 @@ namespace nsp
 
     RESULT init_emu(emu_t& emu, ines_rom_t& ines_rom);
     RESULT step_emu(emu_t& emu, uint32_t cycles);
-    RESULT step_cpu(emu_t& emu, uint32_t cycles);
-    // RESULT step_ppu(emu_t& emu, uint32_t cycles);
+    uint32_t step_cpu(emu_t& emu, uint32_t cycles);
+    uint32_t step_ppu(emu_t& emu, uint32_t cycles);
 
     uint8_t memory_read(emu_t& emu, uint16_t addr, bool peek = false);
     uint16_t memory_read_short(emu_t& emu, uint16_t addr);
@@ -122,6 +137,17 @@ namespace nsp
 
     void check_page_boundary(emu_t& emu, uint16_t addr1, uint16_t addr2);
     void check_page_boundary_index(emu_t& emu, uint16_t base, uint8_t index);
+
+    uint8_t handle_memmap_reg_write(emu_t &emu, uint16_t addr, uint16_t data, bool *handled);
+    uint8_t ppu_reg_write(emu_t& emu, uint16_t addr, uint8_t data);
+    uint8_t ppu_write_vram(emu_t& emu, uint16_t addr, uint8_t data);
+
+    uint8_t handle_memmap_reg_read(emu_t &emu, uint16_t addr, bool *handled, bool peek);
+    uint8_t ppu_reg_read(emu_t& emu, uint16_t addr, bool peek);
+
+    #define NES_WIDTH 256
+    #define NES_HEIGHT 240
+    extern uint32_t window_buffer[];
 }
 
 #endif /* NSP_H */

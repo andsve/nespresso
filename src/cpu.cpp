@@ -3,39 +3,34 @@
 #include "nsp_ops.h"
 #include "nsp_nestest_logger.h"
 
-nsp::RESULT nsp::step_cpu(emu_t& emu, uint32_t max_cycles)
+uint32_t nsp::step_cpu(emu_t& emu, uint32_t max_cycles)
 {
     cpu_t& cpu = emu.cpu;
 
-    // move all these into emu struct?
     uint8_t instr;
     uint16_t temp;
     uint16_t addr;
     uint16_t* addr_ptr;
 
-    // static uint32_t total_cycles = 7;
     uint32_t delta_cycles = 0;
-    uint32_t start_cycles = emu.cpu.cycles;
+    uint32_t start_cycles = cpu.cycles;
     uint32_t instr_cycles = 0;
 
     while (max_cycles > delta_cycles)
     {
+        // Clear instruction specific cycle counters
         instr_cycles = 0;
         cpu.page_wraps = 0;
         cpu.extra_cycles = 0;
 
         // Fetch instruction
         instr = memory_read(emu, cpu.regs.PC);
-        if (cb_debug_fetch_instr) {
-            cb_debug_fetch_instr(instr, emu.cpu.cycles);
-        }
+        if (cb_debug_fetch_instr) cb_debug_fetch_instr(instr, cpu.cycles);
         cpu.regs.PC += 1;
 
         // Address mode resolve
         NES_OP_ADDR_MODES addr_mode = NES_OP_ADDR_MODE_LUT[instr];
-        if (cb_debug_addr_mode) {
-            cb_debug_addr_mode(addr_mode);
-        }
+        if (cb_debug_addr_mode) cb_debug_addr_mode(addr_mode);
 
         // Default to using the addr variable as operator address
         addr_ptr = &addr;
@@ -86,7 +81,7 @@ nsp::RESULT nsp::step_cpu(emu_t& emu, uint32_t max_cycles)
             case Index_ZP_X:
                 addr = (uint16_t)memory_read(emu, cpu.regs.PC);
                 temp = addr;
-                addr = (unsigned char)(addr + cpu.regs.X);
+                addr = (uint8_t)(addr + cpu.regs.X);
 
                 if (cb_debug_mem_read) cb_debug_mem_read(temp, addr, memory_read(emu, addr, true));
                 cpu.regs.PC += 0x1;
@@ -95,7 +90,7 @@ nsp::RESULT nsp::step_cpu(emu_t& emu, uint32_t max_cycles)
             case Index_ZP_Y:
                 addr = (uint16_t)memory_read(emu, cpu.regs.PC);
                 temp = addr;
-                addr = (unsigned char)(addr + cpu.regs.Y);
+                addr = (uint8_t)(addr + cpu.regs.Y);
 
                 if (cb_debug_mem_read) cb_debug_mem_read(temp, addr, memory_read(emu, addr, true));
                 cpu.regs.PC += 0x1;
@@ -191,20 +186,14 @@ nsp::RESULT nsp::step_cpu(emu_t& emu, uint32_t max_cycles)
         if (cb_debug_post_exec) cb_debug_post_exec();
         if (cb_debug_instr_done) cb_debug_instr_done();
 
-        // if (sys.ppu.nmi_occurred) {
-        //     sys.ppu.nmi_occurred = false;
-        //     trigger_vblank_nmi(sys);
-        //     // LOG_D("NMI TRIGGERD");
-
-        //     t_ticks += 7;
-        // }
-
-        emu.cpu.cycles += instr_cycles;
-        delta_cycles = emu.cpu.cycles - start_cycles;
+        cpu.cycles += instr_cycles;
+        delta_cycles = cpu.cycles - start_cycles;
         if (delta_cycles == 0) {
             delta_cycles = 1;
         }
     }
 
-    return RESULT_OK;
+    // Return how many cycles we were actually able to execute during this step.
+    // (We will never be able to execute the expected cycle count due to our implementation!)
+    return delta_cycles;
 }
