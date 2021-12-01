@@ -1392,7 +1392,8 @@ NES_OP_FUNC_IMPL(LDX)
             nsp::cb_debug_mem_write(addr, memory_read(emu, addr), 0x0);
 
     cpu.regs.X = data0;
-    CALC_NEGATIVE(data0);
+    // FIXME(andsve)
+    // CALC_NEGATIVE(data0);
     CALC_ZERO(data0);
 }
 

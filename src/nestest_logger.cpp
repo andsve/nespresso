@@ -364,7 +364,8 @@ static void tmp_cb_debug_mem_read(uint16_t addr1, uint16_t addr2, uint16_t data)
 
 static void tmp_cb_debug_pre_exec()
 {
-    sprintf(emu_regstate, "A:%02X X:%02X Y:%02X P:%02X SP:%02X PPU:%3d,%3d CYC:%d", cpu->regs.A, cpu->regs.X, cpu->regs.Y, cpu->regs.P, cpu->regs.S, emu->ppu.y, emu->ppu.x, emu_ticks);
+    // sprintf(emu_regstate, "A:%02X X:%02X Y:%02X P:%02X SP:%02X PPU:%3d,%3d CYC:%d", cpu->regs.A, cpu->regs.X, cpu->regs.Y, cpu->regs.P, cpu->regs.S, emu->ppu.y, emu->ppu.x, emu_ticks);
+    sprintf(emu_regstate, "A:%02X X:%02X Y:%02X P:%02X SP:%02X PPU:---,--- CYC:%d", cpu->regs.A, cpu->regs.X, cpu->regs.Y, cpu->regs.P, cpu->regs.S, emu_ticks);
 }
 
 static void tmp_cb_debug_post_exec()

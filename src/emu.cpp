@@ -6,7 +6,6 @@
 nsp::RESULT nsp::init_emu(emu_t& emu, ines_rom_t& ines_rom)
 {
     cpu_t& cpu = emu.cpu;
-    ppu_t& ppu = emu.ppu;
     cpu_t::regs_t& regs = cpu.regs;
     cpu_t::vectors_t& vectors = cpu.vectors;
 
@@ -18,16 +17,9 @@ nsp::RESULT nsp::init_emu(emu_t& emu, ines_rom_t& ines_rom)
     regs.A = regs.X = regs.Y = 0x0;
     cpu.cycles = 0;
 
-    // Reset PPU
-    ppu.cycles = ppu.x = ppu.y = 0;
-    ppu.ppuctrl = ppu.ppumask = ppu.ppustatus = 0x0;
-    ppu.ppuaddr_msb = 1;
-
     // Clear RAM, stack and VRAM
     memset(cpu.ram, 0, 0x700);
     memset(cpu.stack, 0, 0x100);
-    memset(ppu.vram, 0, 0x800);
-    memset(ppu.palette, 0, 0xFF);
 
     // Map PRG ROM
     if (ines_rom.prg_page_count == 1) {
@@ -38,14 +30,6 @@ nsp::RESULT nsp::init_emu(emu_t& emu, ines_rom_t& ines_rom)
         cpu.prgrom_upper = ines_rom.prg_pages[1];
     } else {
         LOG_E("TODO: Solve mapping for more than two PRG ROM bank.");
-        return RESULT_ERROR;
-    }
-
-    // Map CHR ROM
-    if (ines_rom.chr_page_count == 1) {
-        ppu.chr_rom = ines_rom.chr_pages[0];
-    } else {
-        LOG_E("TODO: Solve mapping for zero or more than one CHR ROM bank.");
         return RESULT_ERROR;
     }
 
@@ -71,7 +55,6 @@ nsp::RESULT nsp::step_emu(emu_t& emu, uint32_t max_cycles)
     while (delta_cycles < max_cycles)
     {
         uint32_t cpu_cycles = step_cpu(emu, 1);
-        step_ppu(emu, cpu_cycles*3);
         delta_cycles += cpu_cycles;
     }
     return RESULT_OK;
