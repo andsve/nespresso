@@ -1,7 +1,6 @@
 #include "nsp.h"
 #include "nsp_log.h"
 #include "nsp_ops.h"
-#include "nsp_nestest_logger.h"
 
 nsp::NES_OP_ADDR_MODES nsp::NES_OP_ADDR_MODE_LUT[256] = {
     nsp::No_Address,               //   1
@@ -831,10 +830,6 @@ NES_OP_FUNC_IMPL(ADC)
 {
     data0 = MEM_READ_ADDR();
 
-    if (addr_mode != nsp::Const)
-        if (nsp::cb_debug_mem_write)
-            nsp::cb_debug_mem_write(addr, memory_read(emu, addr), 0x0);
-
     data1 = data0;
     data0 = cpu.regs.A + data0 + GET_CARRY;
 
@@ -857,10 +852,6 @@ NES_OP_FUNC_IMPL(AND)
 {
     data0 = MEM_READ_ADDR();
 
-    if (addr_mode != nsp::Const)
-        if (nsp::cb_debug_mem_write)
-            nsp::cb_debug_mem_write(addr, memory_read(emu, addr), 0x0);
-
     data0 = cpu.regs.A & data0;
     cpu.regs.A = data0;
 
@@ -882,12 +873,10 @@ NES_OP_FUNC_IMPL(ASL)
 
     if (addr_mode == nsp::Accumulator)
     {
-        if (nsp::cb_debug_reg_write) nsp::cb_debug_reg_write('A');
         data0 = data0 << 1;
         cpu.regs.A = data0;
 
     } else {
-        if (nsp::cb_debug_mem_write) nsp::cb_debug_mem_write(addr, memory_read(emu, addr), 0x0);
         data0 = data0 << 1;
         memory_write(emu, addr, data0);
     }
@@ -964,7 +953,6 @@ NES_OP_FUNC_IMPL(BIT)
     SET_OVERFLOW( ((data0 >> 6) & 0x1) );
 
     data0 = cpu.regs.A & data0;
-    if (nsp::cb_debug_mem_write) nsp::cb_debug_mem_write(addr, memory_read(emu, addr), 0x0);
     CALC_ZERO(data0);
 }
 
@@ -1139,10 +1127,6 @@ NES_OP_FUNC_IMPL(CMP)
 {
     data0 = MEM_READ_ADDR();
 
-    if (addr_mode != nsp::Const)
-        if (nsp::cb_debug_mem_write)
-            nsp::cb_debug_mem_write(addr, memory_read(emu, addr), 0x0);
-
     data1 = data0;
     data0 = cpu.regs.A - (data0 & 0xFF);
 
@@ -1163,10 +1147,6 @@ NES_OP_FUNC_IMPL(CPX)
 {
     data0 = MEM_READ_ADDR();
 
-    if (addr_mode != nsp::Const)
-        if (nsp::cb_debug_mem_write)
-            nsp::cb_debug_mem_write(addr, memory_read(emu, addr), 0x0);
-
     data1 = data0;
     data0 = cpu.regs.X - data0;
     CALC_NEGATIVE(data0);
@@ -1185,10 +1165,6 @@ NES_OP_FUNC_IMPL(CPX)
 NES_OP_FUNC_IMPL(CPY)
 {
     data0 = MEM_READ_ADDR();
-
-    if (addr_mode != nsp::Const)
-        if (nsp::cb_debug_mem_write)
-            nsp::cb_debug_mem_write(addr, memory_read(emu, addr), 0x0);
 
     data1 = data0;
     data0 = cpu.regs.Y - data0;
@@ -1210,7 +1186,6 @@ NES_OP_FUNC_IMPL(DEC)
     data0 = MEM_READ_ADDR();
 
     data0 = data0 - 1;
-    if (nsp::cb_debug_mem_write) nsp::cb_debug_mem_write(addr, memory_read(emu, addr), data0);
     memory_write(emu, addr, data0);
     CALC_NEGATIVE(data0);
     CALC_ZERO(data0);
@@ -1260,10 +1235,6 @@ NES_OP_FUNC_IMPL(EOR)
 {
     data0 = MEM_READ_ADDR();
 
-    if (addr_mode != nsp::Const)
-        if (nsp::cb_debug_mem_write)
-            nsp::cb_debug_mem_write(addr, memory_read(emu, addr), 0x0);
-
     data0 = cpu.regs.A ^ data0;
     cpu.regs.A = data0;
     CALC_NEGATIVE(data0);
@@ -1282,7 +1253,6 @@ NES_OP_FUNC_IMPL(INC)
 {
     data0 = MEM_READ_ADDR();
 
-    if (nsp::cb_debug_mem_write) nsp::cb_debug_mem_write(addr, memory_read(emu, addr), 0x0);
     data0 = data0 + 1;
     memory_write(emu, addr, data0);
     CALC_NEGATIVE(data0);
@@ -1362,13 +1332,6 @@ NES_OP_FUNC_IMPL(LDA)
 {
     data0 = MEM_READ_ADDR();
 
-    if (addr_mode != nsp::Const)
-        if (nsp::cb_debug_mem_write)
-        {
-            nsp::cb_debug_mem_write(addr, memory_read(emu, addr, true), 0x0);
-            // nsp::cb_debug_mem_write(addr, memory_read(emu, (addr & 0xFFF) - 0x2000 + 0x8000), 0x0);
-        }
-
     cpu.regs.A = data0;
     CALC_NEGATIVE(data0);
     CALC_ZERO(data0);
@@ -1387,10 +1350,6 @@ NES_OP_FUNC_IMPL(LDX)
 {
     data0 = MEM_READ_ADDR();
 
-    if (addr_mode != nsp::Const)
-        if (nsp::cb_debug_mem_write)
-            nsp::cb_debug_mem_write(addr, memory_read(emu, addr), 0x0);
-
     cpu.regs.X = data0;
     CALC_NEGATIVE(data0);
     CALC_ZERO(data0);
@@ -1407,10 +1366,6 @@ NES_OP_FUNC_IMPL(LDX)
 NES_OP_FUNC_IMPL(LDY)
 {
     data0 = MEM_READ_ADDR();
-
-    if (addr_mode != nsp::Const)
-        if (nsp::cb_debug_mem_write)
-            nsp::cb_debug_mem_write(addr, memory_read(emu, addr), 0x0);
 
     cpu.extra_cycles += 1;
 
@@ -1435,12 +1390,9 @@ NES_OP_FUNC_IMPL(LSR)
 
     if (addr_mode == nsp::Accumulator)
     {
-        if (nsp::cb_debug_reg_write) nsp::cb_debug_reg_write('A');
         data0 = data0 >> 1;
-
         cpu.regs.A = data0;
     } else {
-        if (nsp::cb_debug_mem_write) nsp::cb_debug_mem_write(addr, memory_read(emu, addr), 0x0);
         data0 = data0 >> 1;
 
         memory_write(emu, addr, data0);
@@ -1473,10 +1425,6 @@ NES_OP_FUNC_IMPL(NOP)
 NES_OP_FUNC_IMPL(ORA)
 {
     data0 = MEM_READ_ADDR();
-
-    if (addr_mode != nsp::Const)
-        if (nsp::cb_debug_mem_write)
-            nsp::cb_debug_mem_write(addr, memory_read(emu, addr), 0x0);
 
     data0 = cpu.regs.A | data0;
     cpu.regs.A = data0;
@@ -1558,10 +1506,8 @@ NES_OP_FUNC_IMPL(ROL)
     data0 |= GET_CARRY;
 
     if (addr_mode == nsp::Accumulator) {
-        if (nsp::cb_debug_reg_write) nsp::cb_debug_reg_write('A');
         cpu.regs.A = data0;
     } else {
-        if (nsp::cb_debug_mem_write) nsp::cb_debug_mem_write(addr, memory_read(emu, addr), 0x0);
         memory_write(emu, addr, data0);
     }
 
@@ -1592,10 +1538,8 @@ NES_OP_FUNC_IMPL(ROR)
     data0 |= (data1 << 7);
 
     if (addr_mode == nsp::Accumulator) {
-        if (nsp::cb_debug_reg_write) nsp::cb_debug_reg_write('A');
         cpu.regs.A = data0;
     } else {
-        if (nsp::cb_debug_mem_write) nsp::cb_debug_mem_write(addr, memory_read(emu, addr), 0x0);
         memory_write(emu, addr, data0);
     }
 
@@ -1644,9 +1588,6 @@ NES_OP_FUNC_IMPL(RTS)
 NES_OP_FUNC_IMPL(SBC)
 {
     data0 = MEM_READ_ADDR();
-
-    if (addr_mode != nsp::Const)
-        if (nsp::cb_debug_mem_write) nsp::cb_debug_mem_write(addr, memory_read(emu, addr), 0x0);
 
     data0 ^= 0xFF;
     data1 = data0;
@@ -1709,9 +1650,6 @@ NES_OP_FUNC_IMPL(SEI)
 //
 NES_OP_FUNC_IMPL(STA)
 {
-    if (nsp::cb_debug_mem_write) {
-        nsp::cb_debug_mem_write(addr, memory_read(emu, addr, true), cpu.regs.A);
-    }
     data1 = memory_write(emu, addr, cpu.regs.A);
 }
 
@@ -1725,9 +1663,6 @@ NES_OP_FUNC_IMPL(STA)
 //
 NES_OP_FUNC_IMPL(STX)
 {
-    if (nsp::cb_debug_mem_write) {
-        nsp::cb_debug_mem_write(addr, memory_read(emu, addr, true), cpu.regs.X);
-    }
     data1 = memory_write(emu, addr, cpu.regs.X);
 }
 
@@ -1741,7 +1676,6 @@ NES_OP_FUNC_IMPL(STX)
 //
 NES_OP_FUNC_IMPL(STY)
 {
-    if (nsp::cb_debug_mem_write) nsp::cb_debug_mem_write(addr, memory_read(emu, addr, true), 0x0);
     data1 = memory_write(emu, addr, cpu.regs.Y);
 }
 
@@ -1839,8 +1773,6 @@ NES_OP_FUNC_IMPL(TYA)
 
 NES_OP_FUNC_IMPL(UFO_NOP)
 {
-    if (addr_mode != nsp::Const && addr_mode != nsp::No_Address)
-        if (nsp::cb_debug_mem_write) nsp::cb_debug_mem_write(addr, memory_read(emu, addr), 0x0);
 }
 
 // LAX
@@ -1853,7 +1785,6 @@ NES_OP_FUNC_IMPL(UFO_LAX)
 {
     data0 = MEM_READ_ADDR();
 
-    if (nsp::cb_debug_mem_write) nsp::cb_debug_mem_write(addr, memory_read(emu, addr), 0x0);
     cpu.regs.A = data0;
     CALC_NEGATIVE(data0);
     CALC_ZERO(data0);
@@ -1866,7 +1797,6 @@ NES_OP_FUNC_IMPL(UFO_LAX)
 // Stores the bitwise AND of A and X. As with STA and STX, no flags are affected.
 NES_OP_FUNC_IMPL(UFO_SAX)
 {
-    if (nsp::cb_debug_mem_write) nsp::cb_debug_mem_write(addr, memory_read(emu, addr), cpu.regs.A);
     memory_write(emu, addr, cpu.regs.A & cpu.regs.X);
 }
 
@@ -1881,7 +1811,6 @@ NES_OP_FUNC_IMPL(UFO_DCP)
     // DEC
     data1 = data0; // uncertain if this is correct
     data0 = data0 - 1;
-    if (nsp::cb_debug_mem_write) nsp::cb_debug_mem_write(addr, memory_read(emu, addr), data0);
     memory_write(emu, addr, data0);
     CALC_NEGATIVE(data0);
     CALC_ZERO(data0);
@@ -1900,8 +1829,6 @@ NES_OP_FUNC_IMPL(UFO_DCP)
 NES_OP_FUNC_IMPL(UFO_SLO)
 {
     data0 = MEM_READ_ADDR();
-
-    if (nsp::cb_debug_mem_write) nsp::cb_debug_mem_write(addr, memory_read(emu, addr), 0x0);
 
     data0 = data0 << 1;
     memory_write(emu, addr, data0);
@@ -1922,8 +1849,6 @@ NES_OP_FUNC_IMPL(UFO_SLO)
 NES_OP_FUNC_IMPL(UFO_RLA)
 {
     data0 = MEM_READ_ADDR();
-
-    if (nsp::cb_debug_mem_write) nsp::cb_debug_mem_write(addr, memory_read(emu, addr), 0x0);
     data0 = data0 << 1;
     data0 |= GET_CARRY;
     memory_write(emu, addr, data0);
@@ -1946,8 +1871,6 @@ NES_OP_FUNC_IMPL(UFO_SRE)
 {
     data0 = MEM_READ_ADDR();
 
-    if (nsp::cb_debug_mem_write) nsp::cb_debug_mem_write(addr, memory_read(emu, addr), 0x0);
-
     SET_CARRY(data0 & 0x1);
     data0 = data0 >> 1;
     memory_write(emu, addr, data0);
@@ -1967,8 +1890,6 @@ NES_OP_FUNC_IMPL(UFO_SRE)
 NES_OP_FUNC_IMPL(UFO_RRA)
 {
     data0 = MEM_READ_ADDR();
-
-    if (nsp::cb_debug_mem_write) nsp::cb_debug_mem_write(addr, memory_read(emu, addr), 0x0);
 
     data1 = GET_CARRY;
     SET_CARRY(data0 & 0x1);
@@ -2017,7 +1938,6 @@ NES_OP_FUNC_IMPL(UFO_ISB)
 {
     data0 = MEM_READ_ADDR();
 
-    if (nsp::cb_debug_mem_write) nsp::cb_debug_mem_write(addr, memory_read(emu, addr), 0x0);
     data0 = data0 + 1;
     memory_write(emu, addr, data0);
     CALC_NEGATIVE(data0);

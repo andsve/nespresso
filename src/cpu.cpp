@@ -1,7 +1,6 @@
 #include "nsp.h"
 #include "nsp_log.h"
 #include "nsp_ops.h"
-#include "nsp_nestest_logger.h"
 
 uint32_t nsp::step_cpu(emu_t& emu, uint32_t max_cycles)
 {
@@ -25,12 +24,10 @@ uint32_t nsp::step_cpu(emu_t& emu, uint32_t max_cycles)
 
         // Fetch instruction
         instr = memory_read(emu, cpu.regs.PC);
-        if (cb_debug_fetch_instr) cb_debug_fetch_instr(instr, cpu.cycles);
         cpu.regs.PC += 1;
 
         // Address mode resolve
         NES_OP_ADDR_MODES addr_mode = NES_OP_ADDR_MODE_LUT[instr];
-        if (cb_debug_addr_mode) cb_debug_addr_mode(addr_mode);
 
         // Default to using the addr variable as operator address
         addr_ptr = &addr;
@@ -40,19 +37,16 @@ uint32_t nsp::step_cpu(emu_t& emu, uint32_t max_cycles)
         {
             case Const:
                 addr = cpu.regs.PC;
-                if (cb_debug_mem_read) cb_debug_mem_read(0x0, 0x0, memory_read(emu, addr, true));
                 cpu.regs.PC += 0x1;
             break;
 
             case Absolute:
                 addr = ((uint16_t)memory_read(emu, cpu.regs.PC+1) << 8) | memory_read(emu, cpu.regs.PC);
-                if (cb_debug_mem_read) cb_debug_mem_read(addr, 0x0, memory_read(emu, addr, true));
                 cpu.regs.PC += 0x2;
             break;
 
             case Absolute_ZP:
                 addr = (uint16_t)memory_read(emu, cpu.regs.PC);
-                if (cb_debug_mem_read) cb_debug_mem_read(addr, 0x0, memory_read(emu, addr, true));
                 cpu.regs.PC += 0x1;
             break;
 
@@ -63,7 +57,6 @@ uint32_t nsp::step_cpu(emu_t& emu, uint32_t max_cycles)
                 check_page_boundary_index(emu, addr, cpu.regs.X);
                 addr += cpu.regs.X;
 
-                if (cb_debug_mem_read) cb_debug_mem_read(temp, addr, memory_read(emu, addr, true));
                 cpu.regs.PC += 0x2;
             break;
 
@@ -74,7 +67,6 @@ uint32_t nsp::step_cpu(emu_t& emu, uint32_t max_cycles)
                 check_page_boundary_index(emu, addr, cpu.regs.Y);
                 addr += cpu.regs.Y;
 
-                if (cb_debug_mem_read) cb_debug_mem_read(temp, addr, memory_read(emu, addr, true));
                 cpu.regs.PC += 0x2;
             break;
 
@@ -83,7 +75,6 @@ uint32_t nsp::step_cpu(emu_t& emu, uint32_t max_cycles)
                 temp = addr;
                 addr = (uint8_t)(addr + cpu.regs.X);
 
-                if (cb_debug_mem_read) cb_debug_mem_read(temp, addr, memory_read(emu, addr, true));
                 cpu.regs.PC += 0x1;
             break;
 
@@ -92,7 +83,6 @@ uint32_t nsp::step_cpu(emu_t& emu, uint32_t max_cycles)
                 temp = addr;
                 addr = (uint8_t)(addr + cpu.regs.Y);
 
-                if (cb_debug_mem_read) cb_debug_mem_read(temp, addr, memory_read(emu, addr, true));
                 cpu.regs.PC += 0x1;
             break;
 
@@ -113,7 +103,6 @@ uint32_t nsp::step_cpu(emu_t& emu, uint32_t max_cycles)
                     addr = ((uint16_t)memory_read(emu, temp & 0xFF00) << 8) | memory_read(emu, temp);
                 }
 
-                if (cb_debug_mem_read) cb_debug_mem_read(temp, addr, temp);
                 cpu.regs.PC += 0x2;
             break;
 
@@ -122,7 +111,6 @@ uint32_t nsp::step_cpu(emu_t& emu, uint32_t max_cycles)
                 temp = addr;
                 addr = memory_read_short_zp_wrap(emu, addr + cpu.regs.X);
 
-                if (cb_debug_mem_read) cb_debug_mem_read(temp, addr, memory_read(emu, addr, true));
                 cpu.regs.PC += 0x1;
             break;
 
@@ -133,7 +121,6 @@ uint32_t nsp::step_cpu(emu_t& emu, uint32_t max_cycles)
                 check_page_boundary_index(emu, addr, cpu.regs.Y);
                 addr = addr + cpu.regs.Y;
 
-                if (cb_debug_mem_read) cb_debug_mem_read(temp, memory_read_short_zp_wrap(emu, temp), addr);
                 cpu.regs.PC += 0x1;
             break;
 
@@ -144,7 +131,6 @@ uint32_t nsp::step_cpu(emu_t& emu, uint32_t max_cycles)
 
                 check_page_boundary(emu, cpu.regs.PC + 0x1, addr);
 
-                if (cb_debug_mem_read) cb_debug_mem_read(temp, addr, addr);
                 cpu.regs.PC += 0x1;
             break;
 
@@ -152,7 +138,6 @@ uint32_t nsp::step_cpu(emu_t& emu, uint32_t max_cycles)
                 addr_ptr = (uint16_t*)&cpu.regs.A;
             case No_Address:
             case Unused:
-                if (cb_debug_mem_read) cb_debug_mem_read(0x0, 0x0, addr);
                 break;
 
             default:
@@ -161,30 +146,10 @@ uint32_t nsp::step_cpu(emu_t& emu, uint32_t max_cycles)
         };
 
         // Interpret and execute instruction
-        if (cb_debug_pre_exec) cb_debug_pre_exec();
         NES_OP_JT[instr](emu, cpu, addr_mode, instr, addr, addr_ptr);
 
         // Get approx cycle count for current instruction
         instr_cycles += NES_INSTR_CYCLES_LUT[instr];
-
-        // Add any extra page boundary wrap cycles
-        if (NES_INSTR_CYCLES_EXTRA_LUT[instr] == 1)
-        {
-            instr_cycles += cpu.page_wraps;
-        }
-        else if (NES_INSTR_CYCLES_EXTRA_LUT[instr] == 2)
-        {
-            // Add any extra instruction cycles (mostly cycles from successful branching)
-            instr_cycles += cpu.extra_cycles;
-
-            // If branch was taken, we need to take into account page wraps
-            if (cpu.extra_cycles) {
-                instr_cycles += cpu.page_wraps;
-            }
-        }
-
-        if (cb_debug_post_exec) cb_debug_post_exec();
-        if (cb_debug_instr_done) cb_debug_instr_done();
 
         cpu.cycles += instr_cycles;
         delta_cycles = cpu.cycles - start_cycles;

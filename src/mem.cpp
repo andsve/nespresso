@@ -34,7 +34,7 @@ uint8_t nsp::memory_read(emu_t& emu, uint16_t addr, bool peek)
 {
     cpu_t& cpu = emu.cpu;
     bool memmap_reg_handled = false;
-    uint8_t memmap_res = handle_memmap_reg_read(emu, addr, &memmap_reg_handled, peek);
+    uint8_t memmap_res = handle_register_read(emu, addr, &memmap_reg_handled, peek);
     if (memmap_reg_handled) {
         return memmap_res;
     }
@@ -87,7 +87,7 @@ uint8_t nsp::memory_write(emu_t& emu, uint16_t addr, uint8_t data)
     uint8_t prev = 0xff;
 
     bool memmap_reg_handled = false;
-    prev = handle_memmap_reg_write(emu, addr, data, &memmap_reg_handled);
+    prev = handle_register_write(emu, addr, data, &memmap_reg_handled);
     if (memmap_reg_handled) {
         return prev;
     }
@@ -154,55 +154,27 @@ void nsp::check_page_boundary_index(emu_t& emu, uint16_t base, uint8_t index)
     }
 }
 
-uint8_t nsp::handle_memmap_reg_write(emu_t &emu, uint16_t addr, uint16_t data, bool *handled)
+uint8_t nsp::handle_register_write(emu_t &emu, uint16_t addr, uint16_t data, bool *handled)
 {
     *handled = false;
 
     if ((addr >= 0x2000 && addr <= 0x2007) || addr == 0x4014) {
         *handled = true;
-        return ppu_reg_write(emu, addr, data);
     } else if (addr == 0x4016 || addr == 0x4017) {
         *handled = true;
-        LOG_D("Unhandled Joypads write!");
     }
 
     return 0x00;
 }
 
-uint8_t nsp::handle_memmap_reg_read(emu_t &emu, uint16_t addr, bool *handled, bool peek)
+uint8_t nsp::handle_register_read(emu_t &emu, uint16_t addr, bool *handled, bool peek)
 {
     *handled = false;
 
     if ((addr >= 0x2000 && addr <= 0x2007) || addr == 0x4014) {
         *handled = true;
-        return ppu_reg_read(emu, addr, peek);
     } else if (addr == 0x4016 || addr == 0x4017) {
-        LOG_D("Unhandled Joypads read!");
         *handled = true;
-        return 0x40;
-    }
-
-    return 0x0;
-}
-
-uint8_t* nsp::dma_ptr(emu_t &emu, uint16_t addr)
-{
-    cpu_t& cpu = emu.cpu;
-    if (addr < 0x0100)
-    {
-        return (uint8_t*)&cpu.ram[addr];
-    } else if (addr < 0x0200) {
-        return (uint8_t*)&cpu.stack[addr - 0x0100];
-    } else if (addr < 0x4000) {
-        return (uint8_t*)&cpu.ram[addr - 0x0100];
-    } else if (addr < 0x6000) {
-        // TODO Fix I/O reg read and mirroring
-    } else if (addr < 0x8000) {
-        // TODO Fix save RAM read
-    } else if (addr < 0xC000) {
-        return (uint8_t*)&cpu.prgrom_lower[addr - 0x8000];
-    } else {
-        return (uint8_t*)&cpu.prgrom_upper[addr - 0xC000];
     }
 
     return 0x0;
