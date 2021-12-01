@@ -159,8 +159,10 @@ uint8_t nsp::handle_memmap_reg_write(emu_t &emu, uint16_t addr, uint16_t data, b
     *handled = false;
 
     if ((addr >= 0x2000 && addr <= 0x2007) || addr == 0x4014) {
+
         *handled = true;
         return ppu_reg_write(emu, addr, data);
+
     } else if (addr == 0x4016 || addr == 0x4017) {
         *handled = true;
         LOG_D("Unhandled Joypads write!");
@@ -174,8 +176,10 @@ uint8_t nsp::handle_memmap_reg_read(emu_t &emu, uint16_t addr, bool *handled, bo
     *handled = false;
 
     if ((addr >= 0x2000 && addr <= 0x2007) || addr == 0x4014) {
+
         *handled = true;
         return ppu_reg_read(emu, addr, peek);
+
     } else if (addr == 0x4016 || addr == 0x4017) {
         LOG_D("Unhandled Joypads read!");
         *handled = true;
