@@ -6,7 +6,7 @@
 
 namespace nsp
 {
-    bool attach_nestest_logger(nsp::emu_t* emu, nsp::cpu_t* cpu);
+    bool attach_nestest_logger(nsp::emu_t* emu, nsp::cpu_t* cpu, bool validate_log = true);
     bool validate_nestest();
 
     typedef void (*cb_debug_fetch_instr_t)(uint8_t instruction, uint32_t ticks);

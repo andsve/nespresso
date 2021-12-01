@@ -1,4 +1,4 @@
-#include <cstring>
+#include <string.h>
 
 #include "nsp.h"
 #include "nsp_log.h"

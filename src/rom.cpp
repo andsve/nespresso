@@ -1,6 +1,6 @@
-#include <cstdio>
-#include <cstring>
-#include <cerrno>
+#include <stdio.h>
+#include <string.h>
+#include <errno.h>
 #include <stdarg.h>
 #include <stdlib.h>
 
@@ -11,7 +11,18 @@
 //          v2: https://wiki.nesdev.com/w/index.php/NES_2.0
 /*
 
-iNES File Structure (NOTE: v1, for iNESv2 it's a bit different!)
+iNES File Structure, simplified a bit..
+
+           Offset (B)   Size (B)      Meaning
+         +---------------------------------------+
+         |         0 |        16 |        Header |
+         +---------------------------------------+
+         |        16 | 16384 * X |  PRG ROM data |
+         +---------------------------------------+
+         |         Z |  8192 * Y |  CHR ROM data |
+         +---------------------------------------+
+
+Details:
 
 -> Header, 16 bytes
 
@@ -63,16 +74,16 @@ nsp::RESULT nsp::load_rom_mem(const uint8_t* data, long int size, ines_rom_t& ro
     rom.chr_page_count = data[5];
 
     // Get most relevant data from header byte 6 and 7
-    rom.mapper_id = (data[6] & 0xF0) >> 4;
-    rom.mapper_id = (data[7] & (0xF0 << 4)) | rom.mapper_id;
-    rom.ines_v2 = (data[7] & (0x3 << 2)) == 0x08;
+    uint8_t mapper_id = (data[6] & 0xF0) >> 4;
+    mapper_id = (data[7] & (0xF0 << 4)) | mapper_id;
+    bool ines_v2 = (data[7] & (0x3 << 2)) == 0x08;
 
-    if (rom.ines_v2) {
+    if (ines_v2) {
         LOG_E("No support for iNES v2!");
         return RESULT_ERROR;
     }
 
-    if (rom.mapper_id != 0) {
+    if (mapper_id != 0) {
         LOG_E("Only mapper 0 supported!");
         return RESULT_ERROR;
     }

@@ -14,14 +14,11 @@ namespace nsp
 
     struct ines_rom_t
     {
-        bool ines_v2;
-
         uint8_t prg_page_count;
         uint8_t chr_page_count;
 
         uint8_t** prg_pages;
         uint8_t** chr_pages;
-        uint8_t mapper_id;
     };
 
     struct cpu_t

@@ -1,4 +1,4 @@
-#include <cstdio>
+#include <stdio.h>
 
 #include "nsp_nestest_logger.h"
 #include "nsp_log.h"
@@ -276,6 +276,7 @@ static uint8_t emu_line_cursor = 0;
 static uint32_t emu_ticks = 0;
 static uint8_t emu_instr = 0;
 static nsp::NES_OP_ADDR_MODES emu_addr_mode = nsp::Unused;
+static bool validate = true;
 
 static void tmp_cb_debug_fetch_instr(uint8_t instruction, uint32_t ticks)
 {
@@ -388,7 +389,7 @@ nsp::cb_debug_instr_done_t  nsp::cb_debug_instr_done = 0x0;
 
 
 
-bool nsp::attach_nestest_logger(nsp::emu_t* pemu, nsp::cpu_t* pcpu)
+bool nsp::attach_nestest_logger(nsp::emu_t* pemu, nsp::cpu_t* pcpu, bool validate_log)
 {
     emu = pemu;
     cpu = pcpu;
@@ -401,14 +402,19 @@ bool nsp::attach_nestest_logger(nsp::emu_t* pemu, nsp::cpu_t* pcpu)
     cb_debug_post_exec = tmp_cb_debug_post_exec;
     cb_debug_instr_done = tmp_cb_debug_instr_done;
 
+    validate = validate_log;
 
-    logfp = fopen(log_file, "r");
+    if (validate)
+        logfp = fopen(log_file, "r");
 
     return true;
 }
 
 static bool read_log_line()
 {
+    if (!validate)
+        return true;
+
     return fgets(log_line, 256, logfp) != NULL;
 }
 
@@ -417,6 +423,13 @@ static uint32_t print_diff(uint32_t line_number, const char* outbuffer, const ch
     int c = 0;
     uint32_t misses = 0;
     printf("L%04d ", line_number);
+
+    if (!validate)
+    {
+        printf("%s\n", outbuffer);
+        return 0;
+    }
+
     while (true
         && outbuffer[c] != '\n'
         && logbuffer[c] != '\n'
