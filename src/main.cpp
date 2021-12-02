@@ -63,8 +63,9 @@ int main(int argc, char const *argv[])
 
         // this aint how it actually works, but we just want to see pretty pixels
         dimm_window_buffer(0.0f);
-        // dump_chr_rom_debug(emu);
-        dump_ppu_nametable_debug(emu);
+        dump_chr_rom_debug(emu);
+        // dump_ppu_nametable_debug(emu);
+        // dump_ppu_sprites_debug(emu);
         // dump_ppu_vram(emu);
         // dump_ppu_sprites(emu);
 

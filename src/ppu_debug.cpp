@@ -4,13 +4,25 @@
 
 #include <MiniFB.h>
 
-static bool ppu_get_chr_debug(nsp::emu_t& emu, uint16_t chr_i, uint8_t* out_data)
+static bool ppu_get_chr_debug(nsp::emu_t& emu, uint16_t chr_i, uint8_t* out_data, bool is_background)
 {
     if (!emu.ppu.chr_rom) {
         return false;
     }
 
-    uint8_t* chr_data = (uint8_t*)emu.ppu.chr_rom + chr_i;
+    uint16_t chr_offset = 0x0;
+    if (is_background)
+    {
+        if ((emu.ppu.ppuctrl >> 4) & 0x1) {
+            chr_offset = 0x1000;
+        }
+    } else {
+        if ((emu.ppu.ppuctrl >> 3) & 0x1) {
+            chr_offset = 0x1000;
+        }
+    }
+
+    uint8_t* chr_data = (uint8_t*)emu.ppu.chr_rom + chr_i + chr_offset;
 
     // low bits
     for (uint32_t y = 0; y < 8; ++y)
@@ -18,9 +30,8 @@ static bool ppu_get_chr_debug(nsp::emu_t& emu, uint16_t chr_i, uint8_t* out_data
         uint8_t d = *chr_data;
         for (uint32_t x = 0; x < 8; ++x)
         {
-            // clear pix
             uint32_t pix_i = y*8+(7-x);
-            out_data[pix_i] = 0x0;
+            out_data[pix_i] = 0x0; // clear pixel
             out_data[pix_i] = (d >> x) & 0x1;
         }
         chr_data++;
@@ -41,10 +52,10 @@ static bool ppu_get_chr_debug(nsp::emu_t& emu, uint16_t chr_i, uint8_t* out_data
     return true;
 }
 
-static void blit_chr_debug(nsp::emu_t& emu, uint32_t blit_x, uint32_t blit_y, uint32_t chr_index)
+static void blit_chr_debug(nsp::emu_t& emu, uint32_t blit_x, uint32_t blit_y, uint32_t chr_index, bool is_background)
 {
     uint8_t chr[8*8];
-    if (!ppu_get_chr_debug(emu, chr_index*16, chr))
+    if (!ppu_get_chr_debug(emu, chr_index*16, chr, is_background))
     {
         return;
     }
@@ -59,6 +70,11 @@ static void blit_chr_debug(nsp::emu_t& emu, uint32_t blit_x, uint32_t blit_y, ui
             uint32_t ty = blit_y + y;
 
             uint32_t ti = ty*NES_WIDTH + tx;
+
+            if (!is_background && pix == 0)
+            {
+                continue;
+            }
 
             // REMEMBER: pix is the palett index really, so no color!
             // But we know that only two bits are used, values are 0..4;
@@ -75,7 +91,7 @@ void dump_chr_rom_debug(nsp::emu_t& emu)
     {
         for (uint32_t xi = 0; xi < 32; ++xi)
         {
-            blit_chr_debug(emu, xi*8, 1+yi*8, chr_i);
+            blit_chr_debug(emu, xi*8, 1+yi*8, chr_i, false);
             chr_i++;
         }
     }
@@ -93,8 +109,21 @@ void dump_ppu_nametable_debug(nsp::emu_t& emu)
                 LOG_E("trying to access vram out of bounds!\n");
             }
             uint8_t chr_i = emu.ppu.vram[nti];
-            blit_chr_debug(emu, xi*8, yi*8, chr_i);
+            blit_chr_debug(emu, xi*8, yi*8, chr_i, true);
         }
+    }
+}
+
+void dump_ppu_sprites_debug(nsp::emu_t& emu)
+{
+    for (uint32_t sprite_i = 0; sprite_i < 64; ++sprite_i)
+    {
+        uint8_t sprite_y    = emu.ppu.oam[sprite_i*4+0]; // y
+        uint8_t sprite_tile = emu.ppu.oam[sprite_i*4+1]; // tile index
+        // uint8_t sprite_attr = emu.ppu.oam[sprite_i*4+2]; // attributes
+        uint8_t sprite_x    = emu.ppu.oam[sprite_i*4+3]; // x
+
+        blit_chr_debug(emu, sprite_x, sprite_y, sprite_tile, false);
     }
 }
 
