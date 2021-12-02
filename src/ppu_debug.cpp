@@ -4,12 +4,102 @@
 
 #include <MiniFB.h>
 
-// static uint8_t color_2c02[] = {
-//  84,  84,  84,    0,  30, 116,    8,  16, 144,   48,   0, 136,   68,   0, 100,   92,   0,  48,   84,   4,   0,   60,  24,   0,   32,  42,   0,    8,  58,   0,    0,  64,   0,    0,  60,   0,    0,  50,  60,    0,   0,   0, 0,0,0, 0,0,0,
-// 152, 150, 152,    8,  76, 196,   48,  50, 236,   92,  30, 228,  136,  20, 176,  160,  20, 100,  152,  34,  32,  120,  60,   0,   84,  90,   0,   40, 114,   0,    8, 124,   0,    0, 118,  40,    0, 102, 120,    0,   0,   0, 0,0,0, 0,0,0,
-// 236, 238, 236,   76, 154, 236,  120, 124, 236,  176,  98, 236,  228,  84, 236,  236,  88, 180,  236, 106, 100,  212, 136,  32,  160, 170,   0,  116, 196,   0,   76, 208,  32,   56, 204, 108,   56, 180, 204,   60,  60,  60, 0,0,0, 0,0,0,
-// 236, 238, 236,  168, 204, 236,  188, 188, 236,  212, 178, 236,  236, 174, 236,  236, 174, 212,  236, 180, 176,  228, 196, 144,  204, 210, 120,  180, 222, 120,  168, 226, 144,  152, 226, 180,  160, 214, 228,  160, 162, 160, 0,0,0, 0,0,0,
-// };
+static bool ppu_get_chr_debug(nsp::emu_t& emu, uint16_t chr_i, uint8_t* out_data)
+{
+    if (!emu.ppu.chr_rom) {
+        return false;
+    }
+
+    uint8_t* chr_data = (uint8_t*)emu.ppu.chr_rom + chr_i;
+
+    // low bits
+    for (uint32_t y = 0; y < 8; ++y)
+    {
+        uint8_t d = *chr_data;
+        for (uint32_t x = 0; x < 8; ++x)
+        {
+            // clear pix
+            uint32_t pix_i = y*8+(7-x);
+            out_data[pix_i] = 0x0;
+            out_data[pix_i] = (d >> x) & 0x1;
+        }
+        chr_data++;
+    }
+
+    // high bits
+    for (uint32_t y = 0; y < 8; ++y)
+    {
+        uint8_t d = *chr_data;
+        for (uint32_t x = 0; x < 8; ++x)
+        {
+            uint32_t pix_i = y*8+(7-x);
+            out_data[pix_i] = out_data[pix_i] | (((d >> x) & 0x1) << 1);
+        }
+        chr_data++;
+    }
+
+    return true;
+}
+
+static void blit_chr_debug(nsp::emu_t& emu, uint32_t blit_x, uint32_t blit_y, uint32_t chr_index)
+{
+    uint8_t chr[8*8];
+    if (!ppu_get_chr_debug(emu, chr_index*16, chr))
+    {
+        return;
+    }
+
+    for (uint32_t y = 0; y < 8; ++y)
+    {
+        for (uint32_t x = 0; x < 8; ++x)
+        {
+            uint8_t pix = chr[y*8+x];
+
+            uint32_t tx = blit_x + x;
+            uint32_t ty = blit_y + y;
+
+            uint32_t ti = ty*NES_WIDTH + tx;
+
+            // REMEMBER: pix is the palett index really, so no color!
+            // But we know that only two bits are used, values are 0..4;
+            // multiply the pix with 64 to get "grayscale"...
+            nsp::window_buffer[ti] = MFB_RGB(pix*64, pix*64, pix*64);
+        }
+    }
+}
+
+void dump_chr_rom_debug(nsp::emu_t& emu)
+{
+    uint16_t chr_i = 0;
+    for (uint32_t yi = 0; yi < 16; ++yi)
+    {
+        for (uint32_t xi = 0; xi < 32; ++xi)
+        {
+            blit_chr_debug(emu, xi*8, 1+yi*8, chr_i);
+            chr_i++;
+        }
+    }
+}
+
+void dump_ppu_nametable_debug(nsp::emu_t& emu)
+{
+    for (uint32_t yi = 0; yi < 30; ++yi)
+    {
+        for (uint32_t xi = 0; xi < 32; ++xi)
+        {
+
+            uint32_t nti = yi*32+xi;
+            if (nti >= 0x800) {
+                LOG_E("trying to access vram out of bounds!\n");
+            }
+            uint8_t chr_i = emu.ppu.vram[nti];
+            blit_chr_debug(emu, xi*8, yi*8, chr_i);
+        }
+    }
+}
+
+/////////////////////////////////////////////////////////////////////////////
+// debug stuff above only!
 
 static uint8_t color_2c02[] = { 0x80, 0x80, 0x80, 0x00, 0x3D, 0xA6, 0x00, 0x12, 0xB0, 0x44, 0x00, 0x96, 0xA1, 0x00, 0x5E,
    0xC7, 0x00, 0x28, 0xBA, 0x06, 0x00, 0x8C, 0x17, 0x00, 0x5C, 0x2F, 0x00, 0x10, 0x45, 0x00,
@@ -215,7 +305,7 @@ void dump_ppu_nametable_ids(nsp::emu_t& emu)
 void dump_chr_rom(nsp::emu_t& emu)
 {
     uint16_t chr_i = 0;
-    for (uint32_t yi = 0; yi < 30; ++yi)
+    for (uint32_t yi = 0; yi < 16; ++yi)
     {
         for (uint32_t xi = 0; xi < 16; ++xi)
         {
