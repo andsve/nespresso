@@ -24,6 +24,95 @@ static bool ppu_get_chr_debug(nsp::emu_t& emu, uint16_t chr_i, uint8_t* out_data
 
     uint8_t* chr_data = (uint8_t*)emu.ppu.chr_rom + chr_i + chr_offset;
 
+    // Remember, to figure out the palette index for each pixel in a tile;
+    // - Stored in two bytes per row
+    // - Each bit, in each byte, corresponds to one pixel
+    // - First byte represents the "lower bits", second byte the "higher bits"
+    // - By example from the slides:
+    //
+    //    Row #1:
+    //      Byte #1: 133, bit representation: 1 0 0 0 0 1 0 1
+    //      Byte #2:   7, bit representation: 0 0 0 0 0 1 1 1
+    //
+    //    The resulting row of pixels (palette indices) would be:
+    //                         lower bits:  1  0  0  0  0  1  0  1
+    //                        higher bits:  0  0  0  0  0  1  1  1
+    //                           result -> 01 00 00 00 00 11 10 11
+    //
+    //
+    //    Lets take a closer look at how we would do this for the first pixel...
+    //
+    //    1. Looking at first pixel we would need to do something like this;
+    //              byte1 = [1] 0 0 0 0 1 0 1
+    //                       ^-- Interested in this bit for first pixel in row
+    //
+    //    2. Bit shift it 7 places so we move it to the furthest to the right:
+    //       (byte1 >> 7) = 0 0 0 0 0 0 0 [1]
+    //
+    //    3. Do the same for byte 2:
+    //              byte2 = [0] 0 0 0 0 1 1 1
+    //                       ^-- Interested in this bit first pixel in row
+    //
+    //    4. Bit shift it 6 places so we move it to the second most furthest to the right:
+    //       (byte2 >> 6) = 0 0 0 0 0 0 [0] 0
+    //
+    //    5. OR these two results together;
+    //       pixel = (byte1 >> 7) | (byte2 >> 6)
+    //
+    //       and this would get us;
+    //       pixel = 0b01
+    //
+    //
+    // Final note:
+    //   I lied, the bytes aren't stored directly after eachother... :)
+    //   In fact the "lower bit" bytes for all rows are stored first,
+    //   and then all the "higher bit" bytes directly after, something like this:
+    //
+    //   lower-bit-byte-row1
+    //   lower-bit-byte-row2
+    //     ...
+    //   lower-bit-byte-row7
+    //   lower-bit-byte-row8
+    //   higher-bit-byte-row1
+    //   higher-bit-byte-row2
+    //     ...
+    //   higher-bit-byte-row7
+    //   higher-bit-byte-row8
+
+    // low bits
+    for (uint32_t y = 0; y < 8; ++y)
+    {
+        uint8_t byte1 = *chr_data;
+        uint32_t pix_i = y*8;
+        out_data[pix_i++] = (byte1 >> 7) & 0x1; // first pixel in row
+        out_data[pix_i++] = (byte1 >> 6) & 0x1;
+        out_data[pix_i++] = (byte1 >> 5) & 0x1;
+        out_data[pix_i++] = (byte1 >> 4) & 0x1;
+        out_data[pix_i++] = (byte1 >> 3) & 0x1;
+        out_data[pix_i++] = (byte1 >> 2) & 0x1;
+        out_data[pix_i++] = (byte1 >> 1) & 0x1;
+        out_data[pix_i++] = (byte1 >> 0) & 0x1; // last pixel in row
+
+        chr_data++;
+    }
+
+    for (uint32_t y = 0; y < 8; ++y)
+    {
+        uint8_t byte2 = *chr_data;
+        uint32_t pix_i = y*8;
+        out_data[pix_i++] |= ((byte2 >> 6) & 0x2);
+        out_data[pix_i++] |= ((byte2 >> 5) & 0x2);
+        out_data[pix_i++] |= ((byte2 >> 4) & 0x2);
+        out_data[pix_i++] |= ((byte2 >> 3) & 0x2);
+        out_data[pix_i++] |= ((byte2 >> 2) & 0x2);
+        out_data[pix_i++] |= ((byte2 >> 1) & 0x2);
+        out_data[pix_i++] |= ((byte2 >> 0) & 0x2);
+        out_data[pix_i++] |= ((byte2 << 1) & 0x2);
+
+        chr_data++;
+    }
+
+/*
     // low bits
     for (uint32_t y = 0; y < 8; ++y)
     {
@@ -31,7 +120,6 @@ static bool ppu_get_chr_debug(nsp::emu_t& emu, uint16_t chr_i, uint8_t* out_data
         for (uint32_t x = 0; x < 8; ++x)
         {
             uint32_t pix_i = y*8+(7-x);
-            out_data[pix_i] = 0x0; // clear pixel
             out_data[pix_i] = (d >> x) & 0x1;
         }
         chr_data++;
@@ -48,7 +136,7 @@ static bool ppu_get_chr_debug(nsp::emu_t& emu, uint16_t chr_i, uint8_t* out_data
         }
         chr_data++;
     }
-
+*/
     return true;
 }
 
