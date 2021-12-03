@@ -6,9 +6,14 @@ The goal of this project was to share knowledge and increase interest in emulati
 (There is also branches corresponding to different stages in the presentation linked above.)
 
 ## How to build;
-> $ ./setup.sh # will download genie binaries and start a new shell with some ENV vars
+Make sure the submodule is fetched;
+> $ git submodule update --recursive --init
 
-> $ ./generate.sh # will call genie to generate ninja make files inside build folder
+Call this to download genie binaries and start a new shell with some ENV vars;
+> $ ./setup.sh
+
+Generate the build files; calls genie to generate ninja make files inside build folder;
+> $ ./generate.sh
 
 > $ cd build
 
