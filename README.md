@@ -3,6 +3,8 @@ Base for  implementing a very basic NES emulator. Done for an internal presentat
 
 The goal of this project was to share knowledge and increase interest in emulation. It should act as a starting point when looking into creating your own NES emulator.
 
+(There is also branches corresponding to different stages in the presentation linked above.)
+
 ## How to build;
 > $ ./setup.sh # will download genie binaries and start a new shell with some ENV vars
 
