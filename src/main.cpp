@@ -12,51 +12,68 @@
 #define NESTEST_PATH "../data/nestest.nes"
 
 uint32_t nsp::window_buffer[NES_WIDTH * NES_HEIGHT * 4];
+static uint8_t gray_palette[] = {0,0,0, 85,85,85, 170,170,170, 255,255,255};
 
-static void draw_spinner(nsp::emu_t& emu)
+static void blit_chr(const uint8_t* chr_tile, uint32_t blit_x, uint32_t blit_y)
 {
-    static uint8_t spinner = 0;
-    spinner++;
-    // fill(0, 0, 4, 4, (spinner % 4 == 0) * 255, 0, 0);
-    // fill(4, 0, 4, 4, (spinner % 4 == 1) * 255, 0, 0);
-    // fill(4, 4, 4, 4, (spinner % 4 == 2) * 255, 0, 0);
-    // fill(0, 4, 4, 4, (spinner % 4 == 3) * 255, 0, 0);
+    uint8_t tile_pixels[8*8];
 
-    // fill(0, 0, spinner, 4, 255, 0, 0);
-    fill(0, 0, (emu.cpu.cycles % 255), 4, 255, 0, 0);
+    // low bits
+    for (uint32_t y = 0; y < 8; ++y)
+    {
+        uint8_t d = *chr_tile;
+        for (uint32_t x = 0; x < 8; ++x)
+        {
+            // clear pix
+            uint32_t pix_i = y*8+(7-x);
+            tile_pixels[pix_i] = 0x0;
+
+            tile_pixels[pix_i] = (d >> x) & 0x1;
+        }
+        chr_tile++;
+    }
+
+    // high bits
+    for (uint32_t y = 0; y < 8; ++y)
+    {
+        uint8_t d = *chr_tile;
+        for (uint32_t x = 0; x < 8; ++x)
+        {
+            // clear pix
+            uint32_t pix_i = y*8+(7-x);
+
+            tile_pixels[pix_i] = tile_pixels[pix_i] | (((d >> x) & 0x1) << 1);
+        }
+        chr_tile++;
+    }
+
+    // nothing special here, just copy over pixels from tile_pixels to window buffer
+    for (uint32_t y = 0; y < 8; ++y)
+    {
+        for (uint32_t x = 0; x < 8; ++x)
+        {
+            uint8_t pix = tile_pixels[y*8+x];
+
+            uint32_t tx = blit_x + x;
+            uint32_t ty = blit_y + y;
+
+            uint32_t ti = ty*NES_WIDTH + tx;
+
+            nsp::window_buffer[ti] = MFB_RGB(gray_palette[pix*3], gray_palette[pix*3], gray_palette[pix*3]);
+        }
+    }
 }
 
-static bool show_debug = false;
-static bool running = true;
-
-static void minifb_keyboard_cb(struct mfb_window *window, mfb_key key, mfb_key_mod mod, bool isPressed)
+static void dump_chr_rom(nsp::ines_rom_t& rom)
 {
-    nsp::emu_t* emup = (nsp::emu_t*)mfb_get_user_data(window);
-
-    // We are only interested in key releases
-    if (isPressed) return;
-
-    switch (key) {
-        case KB_KEY_ESCAPE:
-            mfb_close(window);
-            break;
-        case KB_KEY_TAB:
-            show_debug = !show_debug;
-            break;
-        case KB_KEY_SPACE:
-            running = !running;
-            break;
-        case KB_KEY_RIGHT:
+    const uint8_t* chr_data = rom.chr_pages[0];
+    for (uint32_t yi = 0; yi < 16; ++yi)
+    {
+        for (uint32_t xi = 0; xi < 32; ++xi)
         {
-            // step ~one frame, or 1 instruction if shift is pressed
-            nsp::RESULT result = nsp::step_emu(*emup, (mod & KB_MOD_SHIFT) == KB_MOD_SHIFT ? 1 : 29781);
-            if (nsp::RESULT_OK != result) {
-                mfb_close(window);
-            }
-            break;
+            const uint8_t* chr_tile = &chr_data[(yi*32 + xi)*16];
+            blit_chr(chr_tile, xi*8, yi*8);
         }
-        default:
-            break;
     }
 }
 
@@ -68,9 +85,6 @@ int main(int argc, char const *argv[])
         rom_filepath = argv[1];
     }
 
-    bool validate_nestest_log = strncmp(rom_filepath, NESTEST_PATH, sizeof(NESTEST_PATH)) == 0;
-    LOG_D("Validating against nestest log: %s", validate_nestest_log ? "YES" : "NO");
-
     // Load ROM and dump info
     nsp::ines_rom_t rom;
     nsp::RESULT result = nsp::load_rom_file(rom_filepath, rom);
@@ -78,86 +92,23 @@ int main(int argc, char const *argv[])
     LOG_D(" -> PRG page count: %d", rom.prg_page_count);
     LOG_D(" -> CHR page count: %d", rom.chr_page_count);
 
-
-    // Pass ROM along to our emulator/system
-    nsp::emu_t emu;
-    result = nsp::init_emu(emu, rom);
-    if (nsp::RESULT_OK != result) return 1;
-
     struct mfb_window *window = 0x0;
-    if (validate_nestest_log)
+
+    clear_window_buffer(255, 0, 0);
+    window = mfb_open_ex("nespresso", NES_WIDTH, NES_HEIGHT, WF_RESIZABLE);
+
+    do
     {
-        // Attach nestest logging mechanism
-        nsp::attach_nestest_logger(&emu, &emu.cpu, validate_nestest_log);
+        dimm_window_buffer(0.0f);
 
-        // If we are running nestest, make sure we start on C000 instead of reset vector!
-        // see nestest.txt
-        emu.cpu.regs.PC = 0xC000;
-        emu.cpu.cycles = 7;
-        emu.ppu.x = 21;
-        emu.ppu.y = 0;
-    } else {
-        clear_window_buffer(255, 0, 0);
-        window = mfb_open_ex("nespresso", NES_WIDTH, NES_HEIGHT, WF_RESIZABLE);
-        mfb_set_user_data(window, (void*)&emu);
-        mfb_set_keyboard_callback(window, minifb_keyboard_cb);
-    }
+        dump_chr_rom(rom);
 
 
-    // Run the emulator!
-    if (validate_nestest_log)
-    {
-        while (true)
-        {
-            result = nsp::step_emu(emu, 1);
-            if (nsp::RESULT_OK != result || !nsp::validate_nestest()) return 1;
-        }
+        int32_t state = mfb_update_ex(window, nsp::window_buffer, NES_WIDTH, NES_HEIGHT);
+        if (state < 0)
+            break;
 
-    } else {
-
-        do
-        {
-            if (running)
-            {
-                result = nsp::step_emu(emu, 29781); // around 60 NES frames per 60 "real" frames
-                if (nsp::RESULT_OK != result) return 1;
-            }
-
-            // this aint how it actually works, but we just want to see pretty pixels
-            dimm_window_buffer(0.0f);
-            dump_ppu_vram(emu);
-            dump_ppu_sprites(emu);
-
-            if (!running) {
-                dimm_window_buffer(0.75f);
-                uint32_t cx = NES_WIDTH/2 - (17/2)*8;
-                uint32_t cy = NES_HEIGHT/2 - 4;
-                draw_text(cx, cy, "Emulator Paused");
-            }
-
-            if (show_debug)
-            {
-                dimm_window_buffer(0.25f);
-                draw_spinner(emu);
-                draw_text(8, 12, "CPU Cycles: %u", emu.cpu.cycles);
-                draw_text(8, 24, "PPU Cycles: %u", emu.ppu.cycles);
-                draw_text(8, 36, "PC: %04X, S: %04X", emu.cpu.regs.PC, emu.cpu.regs.S);
-                draw_text(8, 48, "   C Z I D B O N", emu.cpu.regs.P);
-                draw_text(8, 60, "P: %s %s %s %s %X %s %s", emu.cpu.regs.C ? "|" : " ",
-                                                            emu.cpu.regs.Z ? "|" : " ",
-                                                            emu.cpu.regs.I ? "|" : " ",
-                                                            emu.cpu.regs.D ? "|" : " ",
-                                                            emu.cpu.regs.B,
-                                                            emu.cpu.regs.O ? "|" : " ",
-                                                            emu.cpu.regs.N ? "|" : " ");
-            }
-
-            int32_t state = mfb_update_ex(window, nsp::window_buffer, NES_WIDTH, NES_HEIGHT);
-            if (state < 0)
-                break;
-
-        } while(mfb_wait_sync(window));
-    }
+    } while(mfb_wait_sync(window));
 
     mfb_close(window);
 
