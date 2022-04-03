@@ -3,3 +3,4 @@ build/
 tools/
 .DS_Store
 .lite_project.lua
+data/donkeykong.nes
