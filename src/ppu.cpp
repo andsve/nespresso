@@ -150,8 +150,7 @@ uint8_t nsp::ppu_reg_write(emu_t& emu, uint16_t addr, uint8_t data)
         {
             uint16_t addr = *(uint16_t*)ppu.ppuaddr;
             bool is_palette = addr >= 0x3F00 && addr <= 0x3F1F;
-            uint8_t old_data = data;
-            old_data = ppu_write_vram(emu, addr, data);
+            ppu_write_vram(emu, addr, data);
 
             // check vram address increment
             if (!is_palette && (ppu.ppuctrl >> 2) & 0x1) {
