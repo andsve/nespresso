@@ -147,20 +147,13 @@ void dump_ppu_vram(nsp::emu_t& emu)
             uint32_t sub_y = (yi / 2) % 2;
             uint32_t palette_id = 0;
 
-            uint32_t pr = 0, pg = 0, pb = 0;
-
             if (sub_x == 0 && sub_y == 0) {
                 palette_id = attribute & 0x3;
-                pb = 255;
             } else if (sub_x == 1 && sub_y == 0) {
-                pr = 255;
                 palette_id = (attribute >> 2) & 0x3;
             } else if (sub_x == 0 && sub_y == 1) {
-                pg = 255;
                 palette_id = (attribute >> 4) & 0x3;
             } else if (sub_x == 1 && sub_y == 1) {
-                pr = 255;
-                pg = 255;
                 palette_id = (attribute >> 6) & 0x3;
             }
             palette_set[0] = emu.ppu.palette[0x01+palette_id*4];
