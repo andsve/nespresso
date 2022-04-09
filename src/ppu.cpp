@@ -3,6 +3,8 @@
 #include "nsp.h"
 #include "nsp_log.h"
 
+static void check_sprite0_hit(nsp::ppu_t& ppu);
+
 uint32_t nsp::step_ppu(emu_t& emu, uint32_t max_cycles)
 {
     ppu_t& ppu = emu.ppu;
@@ -26,7 +28,13 @@ uint32_t nsp::step_ppu(emu_t& emu, uint32_t max_cycles)
         // Check if in pre-render line
         if (ppu.y == 261 && ppu.x == 2) {
             ppu.ppustatus &= ~0x80;
+
+        } else if (ppu.y == 261 && ppu.x == 1) {
+            // Sprite 0 Hit flag is cleared at dot 1 of the pre-render line.
+            ppu.ppustatus &= ~0x40;
         }
+
+        check_sprite0_hit(ppu);
 
         // Wrap to new scanline
         if (ppu.x > 340) {
@@ -71,6 +79,97 @@ uint32_t nsp::step_ppu(emu_t& emu, uint32_t max_cycles)
 
     return delta_cycles;
 }
+
+static bool get_chr_row(nsp::ppu_t& ppu, uint16_t addr, uint8_t row, uint8_t* out_pixel_row, bool bg)
+{
+    if (!ppu.chr_rom) {
+        return false;
+    }
+
+    uint16_t chr_offset = 0x0;
+    if (bg) {
+        if ((ppu.ppuctrl >> 4) & 0x1) {
+            chr_offset = 0x1000;
+        }
+    } else {
+        if ((ppu.ppuctrl >> 3) & 0x1) {
+            chr_offset = 0x1000;
+        }
+    }
+
+    uint8_t* chr_data = (uint8_t*)ppu.chr_rom+addr+chr_offset;
+
+    chr_data += row;
+
+    // low bits
+    uint8_t d = *chr_data;
+    for (uint32_t x = 0; x < 8; ++x)
+    {
+        // clear pix
+        uint32_t pix_i = 7-x;
+        out_pixel_row[pix_i] = 0x0;
+
+        out_pixel_row[pix_i] = (d >> x) & 0x1;
+    }
+
+    chr_data += 8;
+
+    // high bits
+    d = *chr_data;
+    for (uint32_t x = 0; x < 8; ++x)
+    {
+        // clear pix
+        uint32_t pix_i = 7-x;
+
+        out_pixel_row[pix_i] = out_pixel_row[pix_i] | (((d >> x) & 0x1) << 1);
+    }
+
+    return true;
+}
+
+static void check_sprite0_hit(nsp::ppu_t& ppu)
+{
+    if ((ppu.ppustatus & 0x40) == 0x40) {
+        return;
+    }
+
+    // Reading the status register will clear bit 7 mentioned above and also the address latch used by PPUSCROLL and PPUADDR. It does not clear the sprite 0 hit or overflow bit.
+    // Once the sprite 0 hit flag is set, it will not be cleared until the end of the next vertical blank. If attempting to use this flag for raster timing, it is important to ensure that the sprite 0 hit check happens outside of vertical blank, otherwise the CPU will "leak" through and the check will fail. The easiest way to do this is to place an earlier check for bit 6 = 0, which will wait for the pre-render scanline to begin.
+    // If using sprite 0 hit to make a bottom scroll bar below a vertically scrolling or freely scrolling playfield, be careful to ensure that the tile in the playfield behind sprite 0 is opaque.
+    // Sprite 0 hit is not detected at x=255, nor is it detected at x=0 through 7 if the background or sprites are hidden in this area.
+
+    uint8_t sprite_y    = ppu.oam[0];
+    uint8_t sprite_x    = ppu.oam[3];
+    uint8_t sprite_tile = ppu.oam[1];
+
+    if (ppu.x >= sprite_x && ppu.y >= sprite_y &&
+        ppu.x < sprite_x+8 && ppu.y < sprite_y+8) {
+
+        uint8_t sprite_row[8];
+        get_chr_row(ppu, sprite_tile*16, sprite_y-ppu.y, sprite_row, false);
+
+        uint8_t bg_row[8];
+        uint32_t xi = ppu.x / 8;
+        uint32_t yi = ppu.y / 8;
+        uint32_t nti = yi*32+xi;
+        uint8_t bg_tile = ppu.vram[nti];
+        get_chr_row(ppu, bg_tile*16, ppu.y-(yi*8), bg_row, true);
+
+        uint8_t sprite_compare_idx = ppu.x - sprite_x;
+        uint8_t sprite_compare_pix = sprite_row[sprite_compare_idx];
+
+        if (sprite_compare_pix > 0) {
+            uint8_t bg_compare_idx = ppu.x-(xi*8);
+            uint8_t bg_compare_pix = bg_row[bg_compare_idx];
+
+            if (bg_compare_pix > 0) {
+                ppu.ppustatus |= 0x40;
+            }
+        }
+    }
+}
+
+
 
 uint8_t nsp::ppu_reg_write(emu_t& emu, uint16_t addr, uint8_t data)
 {
@@ -224,6 +323,35 @@ uint8_t nsp::ppu_write_vram(emu_t& emu, uint16_t addr, uint8_t data)
     }
 }
 
+uint8_t nsp::ppu_read_vram(emu_t& emu, uint16_t addr)
+{
+    ppu_t& ppu = emu.ppu;
+
+    if (addr < 0x2000) // pattern tables
+    {
+        return ppu.chr_rom[addr];
+
+    } else if (addr < 0x3F00) { // nametables
+        uint16_t wrapped_addr = (addr - 0x2000) % 0x800;
+        return ppu.vram[wrapped_addr];
+
+    } else if (addr < 0x3FFF) { // palettes
+        uint16_t wrapped_addr = (addr - 0x3F00) % 0x20;
+
+        if (wrapped_addr == 0x10 ||
+            wrapped_addr == 0x14 ||
+            wrapped_addr == 0x18 ||
+            wrapped_addr == 0x1C) {
+            wrapped_addr = wrapped_addr - 0x10;
+        }
+        return ppu.palette[wrapped_addr];
+
+    } else {
+        LOG_E("READING OUTSIDE PPU MEM: 0x%04x", addr);
+        return 0x0;
+    }
+}
+
 uint8_t nsp::ppu_reg_read(emu_t &emu, uint16_t addr, bool peek)
 {
     ppu_t& ppu = emu.ppu;
@@ -277,6 +405,28 @@ uint8_t nsp::ppu_reg_read(emu_t &emu, uint16_t addr, bool peek)
         case 0x2004:
         {
             return ppu.oam[ppu.oamaddr];
+        }
+        case 0x2007:
+        {
+            uint16_t addr = *(uint16_t*)ppu.ppuaddr;
+            bool is_palette = addr >= 0x3F00 && addr <= 0x3F1F;
+            uint8_t prev_data = ppu.read_buffer;
+            uint8_t read_data = ppu_read_vram(emu, addr);
+
+            // check vram address increment
+            if (!is_palette && (ppu.ppuctrl >> 2) & 0x1) {
+                addr+=32;
+            } else {
+                addr++;
+            }
+            if (!is_palette)
+            {
+                addr = addr % 0x3F00;
+            }
+            *(uint16_t*)ppu.ppuaddr = addr;
+
+            ppu.read_buffer = read_data;
+            return prev_data;
         }
         default:
             LOG_D("Unhandled PPU register read at 0x%x!", addr);

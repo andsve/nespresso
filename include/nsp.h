@@ -92,6 +92,8 @@ namespace nsp
         uint8_t ppuaddr_msb;
         uint8_t oamaddr;
 
+        uint8_t read_buffer;
+
         // rendering pointers/scanline
         uint16_t x, y;
 
@@ -140,6 +142,7 @@ namespace nsp
     uint8_t handle_memmap_reg_write(emu_t &emu, uint16_t addr, uint16_t data, bool *handled);
     uint8_t ppu_reg_write(emu_t& emu, uint16_t addr, uint8_t data);
     uint8_t ppu_write_vram(emu_t& emu, uint16_t addr, uint8_t data);
+    uint8_t ppu_read_vram(emu_t& emu, uint16_t addr);
     uint8_t* dma_ptr(emu_t &emu, uint16_t addr);
 
     uint8_t handle_memmap_reg_read(emu_t &emu, uint16_t addr, bool *handled, bool peek);
