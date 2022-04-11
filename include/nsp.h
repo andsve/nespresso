@@ -140,35 +140,37 @@ namespace nsp
         } ppumask;
 
         uint8_t ppustatus;
-
-        uint8_t fine_x;
-        uint8_t scroll_toggle;
         uint8_t oamaddr;
 
+        // ppu addr and scroll
+        loopy_reg_t LoopyV;
+        loopy_reg_t LoopyT;
+        uint8_t fine_x;
+        uint8_t scroll_toggle;
+
+        // ppu<->cpu bus buffer
         uint8_t read_buffer;
 
         // rendering pointers/scanline
         uint16_t x, y;
-        uint16_t nt_tile;
+        uint8_t nt_tile;
+        uint8_t at_byte;
+        uint16_split_t at;
+        uint8_t at_latch;
         uint16_t pattern_latch;
         uint16_split_t pattern_lo;
         uint16_split_t pattern_hi;
+
+        uint8_t pixel_bg;
+        uint8_t pixel_sp;
+        uint32_t color_bg;
+        uint32_t color_sp;
+        uint32_t screen[NES_WIDTH * NES_HEIGHT * 4];
 
         // VRAM
         uint8_t vram[0x800]; // 2kb vram
         uint8_t palette[0xFF];
         uint8_t oam[64*4];
-
-        // yyy NN YYYYY XXXXX
-        // ||| || ||||| +++++-- coarse X scroll
-        // ||| || +++++-------- coarse Y scroll
-        // ||| ++-------------- nametable select
-        // +++----------------- fine Y scroll
-        // uint16_t LoopyV;
-        // uint16_t LoopyT;
-        loopy_reg_t LoopyV;
-        loopy_reg_t LoopyT;
-        uint32_t screen[NES_WIDTH * NES_HEIGHT * 4];
 
         // Mapped CHR ROM
         uint8_t* chr_rom;
@@ -217,6 +219,7 @@ namespace nsp
     uint8_t ppu_write_vram(emu_t& emu, uint16_t addr, uint8_t data);
     uint8_t ppu_read_vram(emu_t& emu, uint16_t addr);
     bool ppu_raster(emu_t& emu);
+    bool ppu_bg_pipeline(emu_t& emu);
     uint8_t* dma_ptr(emu_t &emu, uint16_t addr);
 
     uint8_t handle_memmap_reg_read(emu_t &emu, uint16_t addr, bool *handled, bool peek);

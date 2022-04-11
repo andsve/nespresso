@@ -166,6 +166,7 @@ int main(int argc, char const *argv[])
                                                             emu.cpu.regs.O ? "|" : " ",
                                                             emu.cpu.regs.N ? "|" : " ");
             } else {
+                /*
                 draw_text(8, 12, "LoopyT: %s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s", ((emu.ppu.LoopyT.val >> 15) & 0x1) ? "|" : " ",
                                                                             ((emu.ppu.LoopyT.val >> 14) & 0x1) ? "|" : " ",
                                                                             ((emu.ppu.LoopyT.val >> 13) & 0x1) ? "|" : " ",
@@ -192,6 +193,7 @@ int main(int argc, char const *argv[])
                                                              ((emu.ppu.fine_x >> 1) & 0x1) ? "|" : " ",
                                                              ((emu.ppu.fine_x >> 0) & 0x1) ? "|" : " ");
                 draw_text(8, 48, "        %04X", emu.ppu.fine_x);
+                */
             }
 
 

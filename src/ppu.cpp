@@ -3,6 +3,34 @@
 #include "nsp.h"
 #include "nsp_log.h"
 
+static uint8_t color_2c02[] = { 0x80, 0x80, 0x80, 0x00, 0x3D, 0xA6, 0x00, 0x12, 0xB0, 0x44, 0x00, 0x96, 0xA1, 0x00, 0x5E,
+   0xC7, 0x00, 0x28, 0xBA, 0x06, 0x00, 0x8C, 0x17, 0x00, 0x5C, 0x2F, 0x00, 0x10, 0x45, 0x00,
+   0x05, 0x4A, 0x00, 0x00, 0x47, 0x2E, 0x00, 0x41, 0x66, 0x00, 0x00, 0x00, 0x05, 0x05, 0x05,
+   0x05, 0x05, 0x05, 0xC7, 0xC7, 0xC7, 0x00, 0x77, 0xFF, 0x21, 0x55, 0xFF, 0x82, 0x37, 0xFA,
+   0xEB, 0x2F, 0xB5, 0xFF, 0x29, 0x50, 0xFF, 0x22, 0x00, 0xD6, 0x32, 0x00, 0xC4, 0x62, 0x00,
+   0x35, 0x80, 0x00, 0x05, 0x8F, 0x00, 0x00, 0x8A, 0x55, 0x00, 0x99, 0xCC, 0x21, 0x21, 0x21,
+   0x09, 0x09, 0x09, 0x09, 0x09, 0x09, 0xFF, 0xFF, 0xFF, 0x0F, 0xD7, 0xFF, 0x69, 0xA2, 0xFF,
+   0xD4, 0x80, 0xFF, 0xFF, 0x45, 0xF3, 0xFF, 0x61, 0x8B, 0xFF, 0x88, 0x33, 0xFF, 0x9C, 0x12,
+   0xFA, 0xBC, 0x20, 0x9F, 0xE3, 0x0E, 0x2B, 0xF0, 0x35, 0x0C, 0xF0, 0xA4, 0x05, 0xFB, 0xFF,
+   0x5E, 0x5E, 0x5E, 0x0D, 0x0D, 0x0D, 0x0D, 0x0D, 0x0D, 0xFF, 0xFF, 0xFF, 0xA6, 0xFC, 0xFF,
+   0xB3, 0xEC, 0xFF, 0xDA, 0xAB, 0xEB, 0xFF, 0xA8, 0xF9, 0xFF, 0xAB, 0xB3, 0xFF, 0xD2, 0xB0,
+   0xFF, 0xEF, 0xA6, 0xFF, 0xF7, 0x9C, 0xD7, 0xE8, 0x95, 0xA6, 0xED, 0xAF, 0xA2, 0xF2, 0xDA,
+   0x99, 0xFF, 0xFC, 0xDD, 0xDD, 0xDD, 0x11, 0x11, 0x11, 0x11, 0x11, 0x11};
+
+// static uint8_t gray_palette[] = {0,0,0, 85,85,85, 170,170,170, 255,255,255};
+
+inline uint8_t palette_id_to_red(uint32_t id) {
+    return color_2c02[id*3];
+}
+
+inline uint8_t palette_id_to_green(uint32_t id) {
+    return color_2c02[id*3+1];
+}
+
+inline uint8_t palette_id_to_blue(uint32_t id) {
+    return color_2c02[id*3+2];
+}
+
 static void check_sprite0_hit(nsp::ppu_t& ppu);
 
 uint32_t nsp::step_ppu(emu_t& emu, uint32_t max_cycles)
@@ -87,7 +115,34 @@ uint32_t nsp::step_ppu(emu_t& emu, uint32_t max_cycles)
 
 #define MFB_RGB(r, g, b)    (((uint32_t) r) << 16) | (((uint32_t) g) << 8) | ((uint32_t) b)
 
-bool nsp::ppu_raster(emu_t& emu) {
+bool nsp::ppu_raster(emu_t& emu)
+{
+    ppu_t& ppu = emu.ppu;
+
+    // perform background and sprite data fetch and pixel output
+    ppu_bg_pipeline(emu);
+    // ppu_sprite_pipeline(emu);
+
+    uint16_t& x = ppu.x;
+    uint16_t& y = ppu.y;
+
+    uint16_t render_x = x - 1;
+    uint16_t render_y = y;
+
+    if (render_x < NES_WIDTH && render_y < NES_HEIGHT)
+    {
+        uint16_t pixel_index = render_y*NES_WIDTH+render_x;
+        // ppu.screen[pixel_index] = MFB_RGB(ppu.pixel_bg, ppu.pixel_bg, ppu.pixel_bg);
+        // ppu.screen[pixel_index] = MFB_RGB(ppu.color_bg, ppu.color_bg, ppu.color_bg);
+        ppu.screen[pixel_index] = ppu.color_bg;
+
+    }
+
+    return true;
+}
+
+bool nsp::ppu_bg_pipeline(emu_t& emu)
+{
     ppu_t& ppu = emu.ppu;
 
     if (!ppu.ppumask.show_bg) {
@@ -100,31 +155,35 @@ bool nsp::ppu_raster(emu_t& emu) {
 
     uint16_t render_x = x - 1;
     uint16_t render_y = y;
-    if (render_x < NES_WIDTH && render_y < NES_HEIGHT) {
-        uint16_t pixel_index = render_y*NES_WIDTH+render_x;
 
-        uint8_t pixel = 0x0;
+    ppu.pixel_bg = 0x0;
+    ppu.color_bg = 0x0;
+    if (render_x < NES_WIDTH && render_y < NES_HEIGHT)
+    {
+        // uint8_t pixel = 0x0;
 
-        uint8_t lo = ppu.pattern_lo.hi;
-        uint8_t hi = ppu.pattern_hi.hi;
+        uint8_t pattern_lo = ppu.pattern_lo.hi;
+        uint8_t pattern_hi = ppu.pattern_hi.hi;
+        uint8_t pattern = ((((pattern_lo >> (7-ppu.fine_x)) & 0x1) << 0) |
+                           (((pattern_hi >> (7-ppu.fine_x)) & 0x1) << 1));
 
-        pixel = (((lo >> (7-ppu.fine_x)) & 0x1) |
-                 (((hi >> (7-ppu.fine_x)) & 0x1) << 1));
+        uint8_t palette_lo = ppu.at.lo;
+        uint8_t palette_hi = ppu.at.hi;
+        uint8_t palette_id = ((((palette_lo >> (7-ppu.fine_x)) & 0x1) << 0) |
+                              (((palette_hi >> (7-ppu.fine_x)) & 0x1) << 1));
 
-        pixel = pixel * (255/3);
+        ppu.pixel_bg = pattern;
 
-        ppu.screen[pixel_index] = MFB_RGB(pixel, pixel, pixel);
-
-        // if (emu.force_red || emu.force_green || emu.force_blue) {
-        //     ppu.screen[pixel_index] = MFB_RGB(emu.force_red * 255, emu.force_green * 255, emu.force_blue * 255);
-        //     if (emu.force_red)
-        //         emu.force_red = false;
-        //     if (emu.force_green)
-        //         emu.force_green = false;
-        //     if (emu.force_blue)
-        //         emu.force_blue = false;
-        // }
-        // ppu.screen[pixel_index] = MFB_RGB(40, 0, 0);
+        if (pattern == 0x0) {
+            uint32_t palette_bg = ppu.palette[0x00];
+            ppu.color_bg = MFB_RGB(palette_id_to_red(palette_bg), palette_id_to_green(palette_bg), palette_id_to_blue(palette_bg));
+        } else {
+            static uint8_t palette_set[3];
+            palette_set[0] = ppu.palette[0x01+palette_id*4];
+            palette_set[1] = ppu.palette[0x02+palette_id*4];
+            palette_set[2] = ppu.palette[0x03+palette_id*4];
+            ppu.color_bg = MFB_RGB(palette_id_to_red(palette_set[pattern-1]), palette_id_to_green(palette_set[pattern-1]), palette_id_to_blue(palette_set[pattern-1]));
+        }
     }
 
     if (((x >= 1 && x <= 256) ||
@@ -133,6 +192,11 @@ bool nsp::ppu_raster(emu_t& emu) {
     {
         ppu.pattern_lo.val = ppu.pattern_lo.val << 1;
         ppu.pattern_hi.val = ppu.pattern_hi.val << 1;
+        ppu.at.lo = ppu.at.lo << 1;
+        ppu.at.hi = ppu.at.hi << 1;
+
+        ppu.at.lo |= (ppu.at_latch & 0b01);
+        ppu.at.hi |= (ppu.at_latch & 0b10)>>1;
     }
 
     // BG data fetch
@@ -148,17 +212,31 @@ bool nsp::ppu_raster(emu_t& emu) {
             if (fetch_tick == 0) {
                 ppu.pattern_lo.lo = ppu.pattern_latch & 0x00FF;
                 ppu.pattern_hi.lo = (ppu.pattern_latch & 0xFF00) >> 8;
+
+                ppu.at_latch = (ppu.at_byte & 0b11);
+                // LOG_D("ppu.at_latch: %x", ppu.at_latch);
+
             } else if (fetch_tick == 1) {
+
+
+            } else if (fetch_tick == 2) {
                 // NT byte
-                // ppu.nt_data_next = ppu_read_vram(emu, ppu.LoopyV);
                 uint16_t nt_addr = 0x2000 | (ppu.LoopyV.val & 0x0FFF);
-                // LOG_D("nt_addr: %x", nt_addr);
                 ppu.nt_tile = ppu_read_vram(emu, nt_addr);
 
-            } else if (fetch_tick == 3) {
+            } else if (fetch_tick == 4) {
                 // AT byte
+                // uint16_t at_addr = 0x23C0
+                //                   | ((ppu.LoopyV.val >> 0) & 0x0C00)
+                //                   | ((ppu.LoopyV.val >> 4) & 0x38)
+                //                   | ((ppu.LoopyV.val >> 2) & 0x07);
+                uint16_t at_addr = 0x23C0 | (ppu.LoopyV.val & 0x0C00) | ((ppu.LoopyV.val >> 4) & 0x38) | ((ppu.LoopyV.val >> 2) & 0x07);
+                ppu.at_byte = ppu_read_vram(emu, at_addr);
 
-            } else if (fetch_tick == 5) {
+                if (ppu.LoopyV.coarse_y & 2) ppu.at_byte >>= 4;
+                if (ppu.LoopyV.coarse_x & 2) ppu.at_byte >>= 2;
+
+            } else if (fetch_tick == 6) {
                 // Low BG tile byte
 
                 uint16_t fine_y = ppu.LoopyV.fine_y;
