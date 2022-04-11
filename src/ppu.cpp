@@ -14,6 +14,9 @@ uint32_t nsp::step_ppu(emu_t& emu, uint32_t max_cycles)
 
     while (max_cycles > delta_cycles)
     {
+        // raster one pixel
+        ppu_raster(emu);
+
         // Advance rasterer state:
         //   On an NTSC version of the NES, there are 240 scanlines on the screen (although the top
         //   and bottom eight lines are cut off) and it takes an additional 3 scanlines worth of CPU cycles
@@ -26,10 +29,8 @@ uint32_t nsp::step_ppu(emu_t& emu, uint32_t max_cycles)
         ppu.x += 1;
 
         // Check if in pre-render line
-        if (ppu.y == 261 && ppu.x == 2) {
+        if (ppu.y == 261 && ppu.x == 1) {
             ppu.ppustatus &= ~0x80;
-
-        } else if (ppu.y == 261 && ppu.x == 1) {
             // Sprite 0 Hit flag is cleared at dot 1 of the pre-render line.
             ppu.ppustatus &= ~0x40;
         }
@@ -68,6 +69,10 @@ uint32_t nsp::step_ppu(emu_t& emu, uint32_t max_cycles)
 
                 emu.cpu.regs.I = 1;
                 emu.cpu.regs.PC = emu.cpu.vectors.NMI;
+
+                if (emu.waiting_for_vblank) {
+                    emu.waiting_for_vblank = false;
+                }
             }
         }
 
@@ -78,6 +83,163 @@ uint32_t nsp::step_ppu(emu_t& emu, uint32_t max_cycles)
     }
 
     return delta_cycles;
+}
+
+#define MFB_RGB(r, g, b)    (((uint32_t) r) << 16) | (((uint32_t) g) << 8) | ((uint32_t) b)
+
+bool nsp::ppu_raster(emu_t& emu) {
+    ppu_t& ppu = emu.ppu;
+
+    if (!ppu.mask_show_bg) {
+        // LOG_D("not rendering bg");
+        return false;
+    }
+
+    uint16_t& x = ppu.x;
+    uint16_t& y = ppu.y;
+
+    // BG data fetch
+    // https://www.nesdev.org/w/images/d/d1/Ntsc_timing.png
+    uint16_t fetch_tick = x % 8;
+
+    // if (fetch_tick == 0) {
+    //     ppu.curr_pattern_lo = ppu.next_pattern_lo;
+    //     ppu.curr_pattern_hi = ppu.next_pattern_hi;
+    // }
+
+    // x/tick 0 is idle
+    if (x != 0 &&
+        ((y >= 0 && y <= 239) || // visible frames
+         (y == 261))) {          // pre render line
+
+        if (fetch_tick == 0) {
+            ppu.curr_pattern_lo = ppu.next_pattern_lo;
+            ppu.curr_pattern_hi = ppu.next_pattern_hi;
+        } else if (fetch_tick == 1) {
+            // NT byte
+            // ppu.nt_data_next = ppu_read_vram(emu, ppu.LoopyV);
+            uint16_t nt_addr = 0x2000 | (ppu.LoopyV & 0x0FFF);
+            // LOG_D("nt_addr: %x", nt_addr);
+            ppu.nt_tile = ppu_read_vram(emu, nt_addr);
+
+        } else if (fetch_tick == 3) {
+            // AT byte
+
+        } else if (fetch_tick == 5) {
+            // Low BG tile byte
+
+            uint16_t fine_y = (ppu.LoopyV & 0b111000000000000) >> 12;
+            uint16_t tile_addr = ppu.nt_tile * 16 + fine_y;
+            if ((emu.ppu.ppuctrl >> 4) & 0x1) {
+                tile_addr += 0x1000;
+            }
+            ppu.next_pattern_lo = ppu_read_vram(emu, tile_addr + 0);
+
+        } else if (fetch_tick == 7) {
+            // High BG tile byte
+
+            uint16_t fine_y = (ppu.LoopyV & 0b111000000000000) >> 12;
+            uint16_t tile_addr = ppu.nt_tile * 16 + fine_y;
+            if ((emu.ppu.ppuctrl >> 4) & 0x1) {
+                tile_addr += 0x1000;
+            }
+            ppu.next_pattern_hi = ppu_read_vram(emu, tile_addr + 8);
+        }
+
+        // inc hori(v)
+        if (fetch_tick == 0 &&
+            (x <= 256 || x >= 321)) {
+            // ppu.LoopyV += 1;
+            if ((ppu.LoopyV & 0x001F) == 31) { // if coarse X == 31
+              ppu.LoopyV &= ~0x001F;           // coarse X = 0
+              ppu.LoopyV ^= 0x0400;            // switch horizontal nametable
+            } else {
+              ppu.LoopyV += 1;                 // increment coarse X
+            }
+        }
+
+
+        // inc vert(v)
+        if (x == 256) {
+            if ((ppu.LoopyV & 0x7000) != 0x7000) {             // if fine Y < 7
+              ppu.LoopyV += 0x1000;                            // increment fine Y
+            } else {
+              ppu.LoopyV &= ~0x7000;                           // fine Y = 0
+              uint16_t ty = (ppu.LoopyV & 0x03E0) >> 5;        // let y = coarse Y
+              if (ty == 29) {
+                ty = 0;                                        // coarse Y = 0
+                ppu.LoopyV ^= 0x0800;                          // switch vertical nametable
+              } else if (ty == 31) {
+                ty = 0;                                        // coarse Y = 0, nametable not switched
+              } else {
+                ty += 1;                                       // increment coarse Y
+              }
+              ppu.LoopyV = (ppu.LoopyV & ~0x03E0) | (ty << 5); // put coarse Y back into v
+            }
+        } else if (x == 257) {
+            // hori(v) = hori(t)
+            // v: ....A.. ...BCDEF <- t: ....A.. ...BCDEF
+            ppu.LoopyV &= 0b0111101111100000;
+            ppu.LoopyV |= (ppu.LoopyT & 0b0000010000011111);
+        }
+    }
+
+    // pre-render line
+    // if (y == 261 && x == 340) {
+    if (y == 261 && x >= 280 && x <= 304) {
+        // ppu.LoopyV = ppu.LoopyT;
+        // LOG_D("RESET LoopyV from LoopyT: %x", ppu.LoopyT);
+
+        // yyy NN YYYYY XXXXX
+        // ||| || ||||| +++++-- coarse X scroll
+        // ||| || +++++-------- coarse Y scroll
+        // ||| ++-------------- nametable select
+        // +++----------------- fine Y scroll
+
+        // ppu.LoopyV &= 0b0000110000011111;
+        ppu.LoopyV &= 0b1000010000011111;
+        // ppu.LoopyV |= (ppu.LoopyT & 0b0000010000011111);
+        ppu.LoopyV |= (ppu.LoopyT & 0b0111101111100000);
+    }
+
+    // ppu.LoopyT &= 0b0111111111111111;
+    // ppu.LoopyV &= 0b0111111111111111;
+
+    if (x < NES_WIDTH && y < NES_HEIGHT) {
+        uint16_t pixel_index = y*NES_WIDTH+x;
+
+        uint8_t pixel = 0x0;
+
+        // pixel = ((ppu.curr_pattern_hi & 0x1) << 1) | (ppu.curr_pattern_lo & 0x1);
+        uint8_t hi = ppu.curr_pattern_hi;
+        uint8_t lo = ppu.curr_pattern_lo;
+        pixel = ((hi & 0x80) |
+                 ((lo & 0x80) >> 1)) >> 6;
+        // pixel = ((lo >> (7 - ppu.fine_x)) |
+        //          ((hi >> (7 - ppu.fine_x)) << 1));
+
+        pixel = pixel * (255/3);
+
+
+        // ppu.curr_pattern_lo = ppu.curr_pattern_lo >> 1;
+        // ppu.curr_pattern_hi = ppu.curr_pattern_hi >> 1;
+        ppu.curr_pattern_lo = ppu.curr_pattern_lo << 1;
+        ppu.curr_pattern_hi = ppu.curr_pattern_hi << 1;
+        ppu.screen[pixel_index] = MFB_RGB(pixel, pixel, pixel);
+
+        // if (emu.force_red || emu.force_green || emu.force_blue) {
+        //     ppu.screen[pixel_index] = MFB_RGB(emu.force_red * 255, emu.force_green * 255, emu.force_blue * 255);
+        //     if (emu.force_red)
+        //         emu.force_red = false;
+        //     if (emu.force_green)
+        //         emu.force_green = false;
+        //     if (emu.force_blue)
+        //         emu.force_blue = false;
+        // }
+        // ppu.screen[pixel_index] = MFB_RGB(40, 0, 0);
+    }
+
+    return true;
 }
 
 static bool get_chr_row(nsp::ppu_t& ppu, uint16_t addr, uint8_t row, uint8_t* out_pixel_row, bool bg)
@@ -203,6 +365,15 @@ uint8_t nsp::ppu_reg_write(emu_t& emu, uint16_t addr, uint8_t data)
                 return t;
             }
             ppu.ppuctrl = data;
+
+            // pass NT bits to T
+            // t: ...GH.. ........ <- d: ......GH
+            //    <used elsewhere> <- d: ABCDEF..
+            ppu.LoopyT &= 0b0111001111111111;
+            ppu.LoopyT |= ((data & 0b11) << 10);
+            // ppu.LoopyT &= 0b0111111111111111;
+            // emu.force_blue = true;
+
             return t;
         }
         case 0x2001:
@@ -238,16 +409,73 @@ uint8_t nsp::ppu_reg_write(emu_t& emu, uint16_t addr, uint8_t data)
             ppu.oamaddr++;
             return t;
         }
-        case 0x2006:
+        case 0x2005:
         {
             uint8_t prev = 0x0;
-            ppu.ppuaddr[ppu.ppuaddr_msb] = data;
-            ppu.ppuaddr_msb = (ppu.ppuaddr_msb + 1) % 2;
+
+            // first write - X scroll
+            if (ppu.scroll_toggle == 0) {
+                // t: ....... ...ABCDE <- d: ABCDE...
+                // x:              FGH <- d: .....FGH
+                // w:                  <- 1
+                // ppu.LoopyT &= ~(0b11111);
+                ppu.LoopyT &= 0b0111111111100000;
+                ppu.LoopyT |= ((data & 0b11111000) >> 3);
+                // ppu.LoopyT &= 0b0111111111111111;
+                ppu.fine_x = (data & 0b111);
+
+                ppu.scroll_toggle = 1;
+                emu.force_red = true;
+
+            // second write - Y scroll
+            } else if (ppu.scroll_toggle == 1) {
+                // t: FGH..AB CDE..... <- d: ABCDEFGH
+                // w:                  <- 0
+                ppu.LoopyT &= 0b0000110000011111;
+                ppu.LoopyT |= ((data & 0b11111000) << 2);
+                ppu.LoopyT |= ((data & 0b111) << 12);
+                // ppu.LoopyT &= 0b0111111111111111;
+
+                ppu.scroll_toggle = 0;
+                emu.force_green = true;
+            }
+
+
+            return prev;
+        }
+        case 0x2006:
+        {
+            // first write
+            if (ppu.scroll_toggle == 0) {
+                // t: .CDEFGH ........ <- d: ..CDEFGH
+                //        <unused>     <- d: AB......
+                // t: Z...... ........ <- 0 (bit Z is cleared)
+                // w:                  <- 1
+                ppu.LoopyT &= 0b000000011111111;
+                ppu.LoopyT |= ((data & 0b00111111) << 8);
+                // ppu.LoopyT &= 0b0111111111111111;
+
+                ppu.scroll_toggle = 1;
+
+            // second write
+            } else if (ppu.scroll_toggle == 1) {
+                // t: ....... ABCDEFGH <- d: ABCDEFGH
+                // v: <...all bits...> <- t: <...all bits...>
+                // w:                  <- 0
+                ppu.LoopyT &= 0b0111111100000000;
+                ppu.LoopyT |= (data & 0b11111111);
+                // ppu.LoopyT &= 0b0111111111111111;
+                ppu.LoopyV = ppu.LoopyT;
+
+                ppu.scroll_toggle = 0;
+            }
+
+            uint8_t prev = 0x0;
             return prev;
         }
         case 0x2007:
         {
-            uint16_t addr = *(uint16_t*)ppu.ppuaddr;
+            uint16_t addr = ppu.LoopyV;
             bool is_palette = addr >= 0x3F00 && addr <= 0x3F1F;
             ppu_write_vram(emu, addr, data);
 
@@ -261,7 +489,7 @@ uint8_t nsp::ppu_reg_write(emu_t& emu, uint16_t addr, uint8_t data)
             {
                 addr = addr % 0x3F00;
             }
-            *(uint16_t*)ppu.ppuaddr = addr;
+            ppu.LoopyV = addr;
             return 0x0;
         }
         case 0x4014:
@@ -278,6 +506,7 @@ uint8_t nsp::ppu_reg_write(emu_t& emu, uint16_t addr, uint8_t data)
             // The CPU is suspended during the transfer, which will take 513 or 514 cycles after the $4014 write tick.
             // (1 wait state cycle while waiting for writes to complete, +1 if on an odd CPU cycle, then 256 alternating read/write cycles.)
             memcpy(&ppu.oam[ppu.oamaddr], dma_data_ptr, 256);
+            break;
         }
         default:
             LOG_D("Unhandled PPU register write 0x%x to 0x%x!", data, addr);
@@ -293,7 +522,8 @@ uint8_t nsp::ppu_write_vram(emu_t& emu, uint16_t addr, uint8_t data)
     if (addr < 0x2000) // pattern tables
     {
         uint8_t old_data = ppu.chr_rom[addr];
-        ppu.chr_rom[addr] = data;
+        LOG_E("WRITING to CHR ROM: 0x%04x", addr);
+        // ppu.chr_rom[addr] = data;
         return old_data;
 
     } else if (addr < 0x3F00) { // nametables
@@ -318,7 +548,7 @@ uint8_t nsp::ppu_write_vram(emu_t& emu, uint16_t addr, uint8_t data)
         return old_data;
 
     } else {
-        LOG_E("READING OUTSIDE PPU MEM: 0x%04x", addr);
+        LOG_E("WRITING OUTSIDE PPU MEM: 0x%04x", addr);
         return 0x0;
     }
 }
@@ -392,8 +622,11 @@ uint8_t nsp::ppu_reg_read(emu_t &emu, uint16_t addr, bool peek)
             uint8_t ppustatus_cpy = ppu.ppustatus;
 
             if (!peek) {
-                ppu.ppustatus &= ~0x80;        // clear vblank status bit if register is being read
-                *(uint16_t*)ppu.ppuaddr = 0x0; // PPUADDR is also zeroed
+                ppu.ppustatus &= ~0x80; // clear vblank status bit if register is being read
+                // ppu.LoopyV = 0x0;       // PPUADDR is also zeroed
+                emu.force_blue = true;
+
+                ppu.scroll_toggle = 0; // clear scroll toggle on PPUSTATUS read
             }
 
             return ppustatus_cpy;
@@ -408,7 +641,7 @@ uint8_t nsp::ppu_reg_read(emu_t &emu, uint16_t addr, bool peek)
         }
         case 0x2007:
         {
-            uint16_t addr = *(uint16_t*)ppu.ppuaddr;
+            uint16_t addr = ppu.LoopyV;
             bool is_palette = addr >= 0x3F00 && addr <= 0x3F1F;
             uint8_t prev_data = ppu.read_buffer;
             uint8_t read_data = ppu_read_vram(emu, addr);
@@ -423,7 +656,7 @@ uint8_t nsp::ppu_reg_read(emu_t &emu, uint16_t addr, bool peek)
             {
                 addr = addr % 0x3F00;
             }
-            *(uint16_t*)ppu.ppuaddr = addr;
+            ppu.LoopyV = addr;
 
             ppu.read_buffer = read_data;
             return prev_data;

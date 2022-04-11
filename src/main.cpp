@@ -119,14 +119,29 @@ int main(int argc, char const *argv[])
         {
             if (running)
             {
-                result = nsp::step_emu(emu, 29781); // around 60 NES frames per 60 "real" frames
+                // result = nsp::step_emu(emu, 29781); // around 60 NES frames per 60 "real" frames
+                result = nsp::step_emu_until_frame_done(emu);
                 if (nsp::RESULT_OK != result) return 1;
             }
 
             // this aint how it actually works, but we just want to see pretty pixels
             dimm_window_buffer(0.0f);
-            dump_ppu_vram(emu);
+            // dump_chr_rom(emu);
+            // dump_ppu_vram(emu);
+            // dump_ppu_sprites(emu);
+
+            for (int y = 0; y < NES_HEIGHT; ++y)
+            {
+                // for (int x = NES_WIDTH / 2; x < NES_WIDTH; ++x)
+                for (int x = 0; x < NES_WIDTH; ++x)
+                {
+                    uint32_t pix_i = y*NES_WIDTH+x;
+                    nsp::window_buffer[pix_i] = emu.ppu.screen[pix_i];
+                }
+            }
+
             dump_ppu_sprites(emu);
+
 
             if (!running) {
                 dimm_window_buffer(0.75f);

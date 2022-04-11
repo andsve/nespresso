@@ -4,6 +4,9 @@
 #include <stdlib.h>
 #include <stdint.h>
 
+#define NES_WIDTH 256
+#define NES_HEIGHT 240
+
 namespace nsp
 {
     enum RESULT
@@ -86,21 +89,60 @@ namespace nsp
     {
         // most important registers to get up and running
         uint8_t ppuctrl;
-        uint8_t ppumask;
+        // uint8_t ppumask;
+        union {
+            struct {
+                // BGRs bMmG
+                // |||| ||||
+                // |||| |||+- Greyscale (0: normal color, 1: produce a greyscale display)
+                // |||| ||+-- 1: Show background in leftmost 8 pixels of screen, 0: Hide
+                // |||| |+--- 1: Show sprites in leftmost 8 pixels of screen, 0: Hide
+                // |||| +---- 1: Show background
+                // |||+------ 1: Show sprites
+                // ||+------- Emphasize red (green on PAL/Dendy)
+                // |+-------- Emphasize green (red on PAL/Dendy)
+                // +--------- Emphasize blue
+                uint8_t mask_emph_B : 1;
+                uint8_t mask_emph_G : 1;
+                uint8_t mask_emph_R : 1;
+                uint8_t mask_show_sprites : 1;
+                uint8_t mask_show_bg : 1;
+                uint8_t mask_show_sprites_left : 1;
+                uint8_t mask_show_bg_left : 1;
+                uint8_t mask_grayscale : 1;
+            };
+            uint8_t ppumask;
+        };
+
         uint8_t ppustatus;
-        uint8_t ppuaddr[2];
-        uint8_t ppuaddr_msb;
+
+        uint8_t fine_x;
+        uint8_t scroll_toggle;
         uint8_t oamaddr;
 
         uint8_t read_buffer;
 
         // rendering pointers/scanline
         uint16_t x, y;
+        uint16_t nt_tile;
+        uint8_t curr_pattern_lo;
+        uint8_t curr_pattern_hi;
+        uint8_t next_pattern_lo;
+        uint8_t next_pattern_hi;
 
         // VRAM
         uint8_t vram[0x800]; // 2kb vram
         uint8_t palette[0xFF];
         uint8_t oam[64*4];
+
+        // yyy NN YYYYY XXXXX
+        // ||| || ||||| +++++-- coarse X scroll
+        // ||| || +++++-------- coarse Y scroll
+        // ||| ++-------------- nametable select
+        // +++----------------- fine Y scroll
+        uint16_t LoopyV;
+        uint16_t LoopyT;
+        uint32_t screen[NES_WIDTH * NES_HEIGHT * 4];
 
         // Mapped CHR ROM
         uint8_t* chr_rom;
@@ -113,6 +155,10 @@ namespace nsp
     {
         cpu_t cpu;
         ppu_t ppu;
+        bool waiting_for_vblank;
+        bool force_red;
+        bool force_green;
+        bool force_blue;
         // apu?
     };
 
@@ -121,6 +167,7 @@ namespace nsp
 
     RESULT init_emu(emu_t& emu, ines_rom_t& ines_rom);
     RESULT step_emu(emu_t& emu, uint32_t cycles);
+    RESULT step_emu_until_frame_done(emu_t& emu);
     uint32_t step_cpu(emu_t& emu, uint32_t cycles);
     uint32_t step_ppu(emu_t& emu, uint32_t cycles);
 
@@ -143,13 +190,12 @@ namespace nsp
     uint8_t ppu_reg_write(emu_t& emu, uint16_t addr, uint8_t data);
     uint8_t ppu_write_vram(emu_t& emu, uint16_t addr, uint8_t data);
     uint8_t ppu_read_vram(emu_t& emu, uint16_t addr);
+    bool ppu_raster(emu_t& emu);
     uint8_t* dma_ptr(emu_t &emu, uint16_t addr);
 
     uint8_t handle_memmap_reg_read(emu_t &emu, uint16_t addr, bool *handled, bool peek);
     uint8_t ppu_reg_read(emu_t& emu, uint16_t addr, bool peek);
 
-    #define NES_WIDTH 256
-    #define NES_HEIGHT 240
     extern uint32_t window_buffer[];
 }
 

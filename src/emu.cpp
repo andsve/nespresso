@@ -21,7 +21,10 @@ nsp::RESULT nsp::init_emu(emu_t& emu, ines_rom_t& ines_rom)
     // Reset PPU
     ppu.cycles = ppu.x = ppu.y = 0;
     ppu.ppuctrl = ppu.ppumask = ppu.ppustatus = 0x0;
-    ppu.ppuaddr_msb = 1;
+    ppu.fine_x = 0x0;
+    ppu.scroll_toggle = 0;
+    ppu.LoopyT = 0;
+    ppu.LoopyV = 0;
 
     // Clear RAM, stack and VRAM
     memset(cpu.ram, 0, 0x700);
@@ -73,6 +76,17 @@ nsp::RESULT nsp::step_emu(emu_t& emu, uint32_t max_cycles)
         uint32_t cpu_cycles = step_cpu(emu, 1);
         step_ppu(emu, cpu_cycles*3);
         delta_cycles += cpu_cycles;
+    }
+    return RESULT_OK;
+}
+
+nsp::RESULT nsp::step_emu_until_frame_done(emu_t& emu)
+{
+    emu.waiting_for_vblank = true;
+    while (emu.waiting_for_vblank)
+    {
+        uint32_t cpu_cycles = step_cpu(emu, 1);
+        step_ppu(emu, cpu_cycles*3);
     }
     return RESULT_OK;
 }
