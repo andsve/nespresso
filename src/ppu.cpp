@@ -90,7 +90,7 @@ uint32_t nsp::step_ppu(emu_t& emu, uint32_t max_cycles)
 bool nsp::ppu_raster(emu_t& emu) {
     ppu_t& ppu = emu.ppu;
 
-    if (!ppu.mask_show_bg) {
+    if (!ppu.ppumask.show_bg) {
         // LOG_D("not rendering bg");
         return false;
     }
@@ -98,133 +98,21 @@ bool nsp::ppu_raster(emu_t& emu) {
     uint16_t& x = ppu.x;
     uint16_t& y = ppu.y;
 
-    // BG data fetch
-    // https://www.nesdev.org/w/images/d/d1/Ntsc_timing.png
-    uint16_t fetch_tick = x % 8;
-
-    // if (fetch_tick == 0) {
-    //     ppu.curr_pattern_lo = ppu.next_pattern_lo;
-    //     ppu.curr_pattern_hi = ppu.next_pattern_hi;
-    // }
-
-    // x/tick 0 is idle
-    if (x != 0 &&
-        ((y >= 0 && y <= 239) || // visible frames
-         (y == 261))) {          // pre render line
-
-        if (fetch_tick == 0) {
-            ppu.curr_pattern_lo = ppu.next_pattern_lo;
-            ppu.curr_pattern_hi = ppu.next_pattern_hi;
-        } else if (fetch_tick == 1) {
-            // NT byte
-            // ppu.nt_data_next = ppu_read_vram(emu, ppu.LoopyV);
-            uint16_t nt_addr = 0x2000 | (ppu.LoopyV & 0x0FFF);
-            // LOG_D("nt_addr: %x", nt_addr);
-            ppu.nt_tile = ppu_read_vram(emu, nt_addr);
-
-        } else if (fetch_tick == 3) {
-            // AT byte
-
-        } else if (fetch_tick == 5) {
-            // Low BG tile byte
-
-            uint16_t fine_y = (ppu.LoopyV & 0b111000000000000) >> 12;
-            uint16_t tile_addr = ppu.nt_tile * 16 + fine_y;
-            if ((emu.ppu.ppuctrl >> 4) & 0x1) {
-                tile_addr += 0x1000;
-            }
-            ppu.next_pattern_lo = ppu_read_vram(emu, tile_addr + 0);
-
-        } else if (fetch_tick == 7) {
-            // High BG tile byte
-
-            uint16_t fine_y = (ppu.LoopyV & 0b111000000000000) >> 12;
-            uint16_t tile_addr = ppu.nt_tile * 16 + fine_y;
-            if ((emu.ppu.ppuctrl >> 4) & 0x1) {
-                tile_addr += 0x1000;
-            }
-            ppu.next_pattern_hi = ppu_read_vram(emu, tile_addr + 8);
-        }
-
-        // inc hori(v)
-        if (fetch_tick == 0 &&
-            (x <= 256 || x >= 321)) {
-            // ppu.LoopyV += 1;
-            if ((ppu.LoopyV & 0x001F) == 31) { // if coarse X == 31
-              ppu.LoopyV &= ~0x001F;           // coarse X = 0
-              ppu.LoopyV ^= 0x0400;            // switch horizontal nametable
-            } else {
-              ppu.LoopyV += 1;                 // increment coarse X
-            }
-        }
-
-
-        // inc vert(v)
-        if (x == 256) {
-            if ((ppu.LoopyV & 0x7000) != 0x7000) {             // if fine Y < 7
-              ppu.LoopyV += 0x1000;                            // increment fine Y
-            } else {
-              ppu.LoopyV &= ~0x7000;                           // fine Y = 0
-              uint16_t ty = (ppu.LoopyV & 0x03E0) >> 5;        // let y = coarse Y
-              if (ty == 29) {
-                ty = 0;                                        // coarse Y = 0
-                ppu.LoopyV ^= 0x0800;                          // switch vertical nametable
-              } else if (ty == 31) {
-                ty = 0;                                        // coarse Y = 0, nametable not switched
-              } else {
-                ty += 1;                                       // increment coarse Y
-              }
-              ppu.LoopyV = (ppu.LoopyV & ~0x03E0) | (ty << 5); // put coarse Y back into v
-            }
-        } else if (x == 257) {
-            // hori(v) = hori(t)
-            // v: ....A.. ...BCDEF <- t: ....A.. ...BCDEF
-            ppu.LoopyV &= 0b0111101111100000;
-            ppu.LoopyV |= (ppu.LoopyT & 0b0000010000011111);
-        }
-    }
-
-    // pre-render line
-    // if (y == 261 && x == 340) {
-    if (y == 261 && x >= 280 && x <= 304) {
-        // ppu.LoopyV = ppu.LoopyT;
-        // LOG_D("RESET LoopyV from LoopyT: %x", ppu.LoopyT);
-
-        // yyy NN YYYYY XXXXX
-        // ||| || ||||| +++++-- coarse X scroll
-        // ||| || +++++-------- coarse Y scroll
-        // ||| ++-------------- nametable select
-        // +++----------------- fine Y scroll
-
-        // ppu.LoopyV &= 0b0000110000011111;
-        ppu.LoopyV &= 0b1000010000011111;
-        // ppu.LoopyV |= (ppu.LoopyT & 0b0000010000011111);
-        ppu.LoopyV |= (ppu.LoopyT & 0b0111101111100000);
-    }
-
-    // ppu.LoopyT &= 0b0111111111111111;
-    // ppu.LoopyV &= 0b0111111111111111;
-
-    if (x < NES_WIDTH && y < NES_HEIGHT) {
-        uint16_t pixel_index = y*NES_WIDTH+x;
+    uint16_t render_x = x - 1;
+    uint16_t render_y = y;
+    if (render_x < NES_WIDTH && render_y < NES_HEIGHT) {
+        uint16_t pixel_index = render_y*NES_WIDTH+render_x;
 
         uint8_t pixel = 0x0;
 
-        // pixel = ((ppu.curr_pattern_hi & 0x1) << 1) | (ppu.curr_pattern_lo & 0x1);
-        uint8_t hi = ppu.curr_pattern_hi;
-        uint8_t lo = ppu.curr_pattern_lo;
-        pixel = ((hi & 0x80) |
-                 ((lo & 0x80) >> 1)) >> 6;
-        // pixel = ((lo >> (7 - ppu.fine_x)) |
-        //          ((hi >> (7 - ppu.fine_x)) << 1));
+        uint8_t lo = ppu.pattern_lo.hi;
+        uint8_t hi = ppu.pattern_hi.hi;
+
+        pixel = (((lo >> (7-ppu.fine_x)) & 0x1) |
+                 (((hi >> (7-ppu.fine_x)) & 0x1) << 1));
 
         pixel = pixel * (255/3);
 
-
-        // ppu.curr_pattern_lo = ppu.curr_pattern_lo >> 1;
-        // ppu.curr_pattern_hi = ppu.curr_pattern_hi >> 1;
-        ppu.curr_pattern_lo = ppu.curr_pattern_lo << 1;
-        ppu.curr_pattern_hi = ppu.curr_pattern_hi << 1;
         ppu.screen[pixel_index] = MFB_RGB(pixel, pixel, pixel);
 
         // if (emu.force_red || emu.force_green || emu.force_blue) {
@@ -237,6 +125,105 @@ bool nsp::ppu_raster(emu_t& emu) {
         //         emu.force_blue = false;
         // }
         // ppu.screen[pixel_index] = MFB_RGB(40, 0, 0);
+    }
+
+    if (((x >= 1 && x <= 256) ||
+         (x >= 321 && x <= 336)) &&
+        (y < 240 || y == 261)) // visible frames and pre render line
+    {
+        ppu.pattern_lo.val = ppu.pattern_lo.val << 1;
+        ppu.pattern_hi.val = ppu.pattern_hi.val << 1;
+    }
+
+    // BG data fetch
+    // https://www.nesdev.org/w/images/d/d1/Ntsc_timing.png
+    if (x != 0 && // x/tick 0 is idle
+        (y < 240 || y == 261)) // visible frames and pre render line
+    {
+        uint16_t fetch_tick = x % 8;
+
+        if (x <= 256 ||
+            (x >= 319 && x <= 340)) {
+
+            if (fetch_tick == 0) {
+                ppu.pattern_lo.lo = ppu.pattern_latch & 0x00FF;
+                ppu.pattern_hi.lo = (ppu.pattern_latch & 0xFF00) >> 8;
+            } else if (fetch_tick == 1) {
+                // NT byte
+                // ppu.nt_data_next = ppu_read_vram(emu, ppu.LoopyV);
+                uint16_t nt_addr = 0x2000 | (ppu.LoopyV.val & 0x0FFF);
+                // LOG_D("nt_addr: %x", nt_addr);
+                ppu.nt_tile = ppu_read_vram(emu, nt_addr);
+
+            } else if (fetch_tick == 3) {
+                // AT byte
+
+            } else if (fetch_tick == 5) {
+                // Low BG tile byte
+
+                uint16_t fine_y = ppu.LoopyV.fine_y;
+                uint16_t tile_addr = ppu.nt_tile * 16 + fine_y;
+                if ((emu.ppu.ppuctrl >> 4) & 0x1) {
+                    tile_addr += 0x1000;
+                }
+                // ppu.next_pattern_lo = ppu_read_vram(emu, tile_addr + 0);
+                ppu.pattern_latch = ppu_read_vram(emu, tile_addr + 0);
+
+            } else if (fetch_tick == 7) {
+                // High BG tile byte
+
+                uint16_t fine_y = ppu.LoopyV.fine_y;
+                uint16_t tile_addr = ppu.nt_tile * 16 + fine_y;
+                if ((emu.ppu.ppuctrl >> 4) & 0x1) {
+                    tile_addr += 0x1000;
+                }
+                // ppu.next_pattern_hi = ppu_read_vram(emu, tile_addr + 8);
+                ppu.pattern_latch |= (ppu_read_vram(emu, tile_addr + 8)) << 8;
+            }
+        }
+
+        // inc hori(v)
+        if (fetch_tick == 0 &&
+            (x <= 256 || x >= 321)) {
+            if ((ppu.LoopyV.coarse_x) == 31) { // if coarse X == 31
+              ppu.LoopyV.coarse_x = 0x0; // coarse X = 0
+              ppu.LoopyV.nt ^= 0x1;      // switch horizontal nametable
+            } else {
+              ppu.LoopyV.val += 1;       // increment coarse X
+            }
+        }
+
+
+        // inc vert(v)
+        if (x == 256) {
+            if (ppu.LoopyV.fine_y != 0x7) {             // if fine Y < 7
+              ppu.LoopyV.fine_y += 0x1;                 // increment fine Y
+            } else {
+              ppu.LoopyV.fine_y = 0x0;                  // fine Y = 0
+              uint16_t ty = ppu.LoopyV.coarse_y;        // let y = coarse Y
+              if (ty == 29) {
+                ty = 0;                                 // coarse Y = 0
+                ppu.LoopyV.val ^= 0x10;                 // switch vertical nametable
+              } else if (ty == 31) {
+                ty = 0;                                 // coarse Y = 0, nametable not switched
+              } else {
+                ty += 1;                                // increment coarse Y
+              }
+              ppu.LoopyV.coarse_y = ty; // put coarse Y back into v
+            }
+        } else if (x == 257) {
+            // hori(v) = hori(t)
+            // v: ....A.. ...BCDEF <- t: ....A.. ...BCDEF
+            ppu.LoopyV.coarse_x = ppu.LoopyT.coarse_x;
+            ppu.LoopyV.nt = (ppu.LoopyV.nt & 0b10) | (ppu.LoopyT.nt & 0b01);
+        }
+    }
+
+    // vert(v) = vert(t) (during pre-render line)
+    if (y == 261 && x >= 280 && x <= 304) {
+        ppu.LoopyV.coarse_y = ppu.LoopyT.coarse_y;
+        ppu.LoopyV.fine_y = ppu.LoopyT.fine_y;
+        ppu.LoopyV.nt = (ppu.LoopyV.nt & 0b01) | (ppu.LoopyT.nt & 0b10);
     }
 
     return true;
@@ -369,10 +356,7 @@ uint8_t nsp::ppu_reg_write(emu_t& emu, uint16_t addr, uint8_t data)
             // pass NT bits to T
             // t: ...GH.. ........ <- d: ......GH
             //    <used elsewhere> <- d: ABCDEF..
-            ppu.LoopyT &= 0b0111001111111111;
-            ppu.LoopyT |= ((data & 0b11) << 10);
-            // ppu.LoopyT &= 0b0111111111111111;
-            // emu.force_blue = true;
+            ppu.LoopyT.nt = data & 0b11;
 
             return t;
         }
@@ -392,8 +376,8 @@ uint8_t nsp::ppu_reg_write(emu_t& emu, uint16_t addr, uint8_t data)
             |+-------- Emphasize green (red on PAL/Dendy)
             +--------- Emphasize blue
             */
-            uint8_t t = ppu.ppumask;
-            ppu.ppumask = data;
+            uint8_t t = ppu.ppumask.val;
+            ppu.ppumask.val = data;
             return t;
         }
         case 0x2003:
@@ -418,10 +402,7 @@ uint8_t nsp::ppu_reg_write(emu_t& emu, uint16_t addr, uint8_t data)
                 // t: ....... ...ABCDE <- d: ABCDE...
                 // x:              FGH <- d: .....FGH
                 // w:                  <- 1
-                // ppu.LoopyT &= ~(0b11111);
-                ppu.LoopyT &= 0b0111111111100000;
-                ppu.LoopyT |= ((data & 0b11111000) >> 3);
-                // ppu.LoopyT &= 0b0111111111111111;
+                ppu.LoopyT.coarse_x = (data & 0b11111000) >> 3;
                 ppu.fine_x = (data & 0b111);
 
                 ppu.scroll_toggle = 1;
@@ -431,10 +412,9 @@ uint8_t nsp::ppu_reg_write(emu_t& emu, uint16_t addr, uint8_t data)
             } else if (ppu.scroll_toggle == 1) {
                 // t: FGH..AB CDE..... <- d: ABCDEFGH
                 // w:                  <- 0
-                ppu.LoopyT &= 0b0000110000011111;
-                ppu.LoopyT |= ((data & 0b11111000) << 2);
-                ppu.LoopyT |= ((data & 0b111) << 12);
-                // ppu.LoopyT &= 0b0111111111111111;
+                ppu.LoopyT.coarse_y = (data & 0b11111000) << 2;
+                ppu.LoopyT.fine_y = data & 0b111;
+
 
                 ppu.scroll_toggle = 0;
                 emu.force_green = true;
@@ -451,9 +431,8 @@ uint8_t nsp::ppu_reg_write(emu_t& emu, uint16_t addr, uint8_t data)
                 //        <unused>     <- d: AB......
                 // t: Z...... ........ <- 0 (bit Z is cleared)
                 // w:                  <- 1
-                ppu.LoopyT &= 0b000000011111111;
-                ppu.LoopyT |= ((data & 0b00111111) << 8);
-                // ppu.LoopyT &= 0b0111111111111111;
+                ppu.LoopyT.val &= 0b000000011111111;
+                ppu.LoopyT.val |= ((data & 0b00111111) << 8);
 
                 ppu.scroll_toggle = 1;
 
@@ -462,10 +441,9 @@ uint8_t nsp::ppu_reg_write(emu_t& emu, uint16_t addr, uint8_t data)
                 // t: ....... ABCDEFGH <- d: ABCDEFGH
                 // v: <...all bits...> <- t: <...all bits...>
                 // w:                  <- 0
-                ppu.LoopyT &= 0b0111111100000000;
-                ppu.LoopyT |= (data & 0b11111111);
-                // ppu.LoopyT &= 0b0111111111111111;
-                ppu.LoopyV = ppu.LoopyT;
+                ppu.LoopyT.val &= 0b0111111100000000;
+                ppu.LoopyT.val |= (data & 0b11111111);
+                ppu.LoopyV.val = ppu.LoopyT.val;
 
                 ppu.scroll_toggle = 0;
             }
@@ -475,7 +453,7 @@ uint8_t nsp::ppu_reg_write(emu_t& emu, uint16_t addr, uint8_t data)
         }
         case 0x2007:
         {
-            uint16_t addr = ppu.LoopyV;
+            uint16_t addr = ppu.LoopyV.val;
             bool is_palette = addr >= 0x3F00 && addr <= 0x3F1F;
             ppu_write_vram(emu, addr, data);
 
@@ -489,7 +467,7 @@ uint8_t nsp::ppu_reg_write(emu_t& emu, uint16_t addr, uint8_t data)
             {
                 addr = addr % 0x3F00;
             }
-            ppu.LoopyV = addr;
+            ppu.LoopyV.val = addr;
             return 0x0;
         }
         case 0x4014:
@@ -593,7 +571,7 @@ uint8_t nsp::ppu_reg_read(emu_t &emu, uint16_t addr, bool peek)
         }
         case 0x2001:
         {
-            return ppu.ppumask;
+            return ppu.ppumask.val;
         }
         case 0x2002:
         {
@@ -641,7 +619,7 @@ uint8_t nsp::ppu_reg_read(emu_t &emu, uint16_t addr, bool peek)
         }
         case 0x2007:
         {
-            uint16_t addr = ppu.LoopyV;
+            uint16_t addr = ppu.LoopyV.val;
             bool is_palette = addr >= 0x3F00 && addr <= 0x3F1F;
             uint8_t prev_data = ppu.read_buffer;
             uint8_t read_data = ppu_read_vram(emu, addr);
@@ -656,7 +634,7 @@ uint8_t nsp::ppu_reg_read(emu_t &emu, uint16_t addr, bool peek)
             {
                 addr = addr % 0x3F00;
             }
-            ppu.LoopyV = addr;
+            ppu.LoopyV.val = addr;
 
             ppu.read_buffer = read_data;
             return prev_data;

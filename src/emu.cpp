@@ -20,11 +20,11 @@ nsp::RESULT nsp::init_emu(emu_t& emu, ines_rom_t& ines_rom)
 
     // Reset PPU
     ppu.cycles = ppu.x = ppu.y = 0;
-    ppu.ppuctrl = ppu.ppumask = ppu.ppustatus = 0x0;
+    ppu.ppuctrl = ppu.ppumask.val = ppu.ppustatus = 0x0;
     ppu.fine_x = 0x0;
     ppu.scroll_toggle = 0;
-    ppu.LoopyT = 0;
-    ppu.LoopyV = 0;
+    ppu.LoopyT.val = 0;
+    ppu.LoopyV.val = 0;
 
     // Clear RAM, stack and VRAM
     memset(cpu.ram, 0, 0x700);

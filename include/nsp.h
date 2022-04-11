@@ -30,7 +30,7 @@ namespace nsp
         struct regs_t
         {
             union {
-                struct {
+                struct __attribute__((packed)) {
                     /*
                     7  bit  0
                     ---- ----
@@ -85,13 +85,38 @@ namespace nsp
         uint8_t extra_cycles;
     };
 
+    union loopy_reg_t {
+        struct __attribute__((packed)) {
+            // ? yyy NN YYYYY XXXXX
+            // | ||| || ||||| +++++-- coarse X scroll
+            // | ||| || +++++-------- coarse Y scroll
+            // | ||| ++-------------- nametable select
+            // | +++----------------- fine Y scroll
+            // +--------------------- unused?
+            uint16_t coarse_x : 5;
+            uint16_t coarse_y : 5;
+            uint16_t nt : 2;
+            uint16_t fine_y : 3;
+            uint16_t unused : 1;
+        };
+        uint16_t val;
+    };
+
+    union uint16_split_t {
+        struct __attribute__((packed)) {
+            uint8_t lo;
+            uint8_t hi;
+        };
+        uint16_t val;
+    };
+
     struct ppu_t
     {
         // most important registers to get up and running
         uint8_t ppuctrl;
         // uint8_t ppumask;
         union {
-            struct {
+            struct __attribute__((packed)) {
                 // BGRs bMmG
                 // |||| ||||
                 // |||| |||+- Greyscale (0: normal color, 1: produce a greyscale display)
@@ -102,17 +127,17 @@ namespace nsp
                 // ||+------- Emphasize red (green on PAL/Dendy)
                 // |+-------- Emphasize green (red on PAL/Dendy)
                 // +--------- Emphasize blue
-                uint8_t mask_emph_B : 1;
-                uint8_t mask_emph_G : 1;
-                uint8_t mask_emph_R : 1;
-                uint8_t mask_show_sprites : 1;
-                uint8_t mask_show_bg : 1;
-                uint8_t mask_show_sprites_left : 1;
-                uint8_t mask_show_bg_left : 1;
-                uint8_t mask_grayscale : 1;
+                uint8_t grayscale : 1;
+                uint8_t show_bg_left : 1;
+                uint8_t show_sprites_left : 1;
+                uint8_t show_bg : 1;
+                uint8_t show_sprites : 1;
+                uint8_t emph_R : 1;
+                uint8_t emph_G : 1;
+                uint8_t emph_B : 1;
             };
-            uint8_t ppumask;
-        };
+            uint8_t val;
+        } ppumask;
 
         uint8_t ppustatus;
 
@@ -125,10 +150,9 @@ namespace nsp
         // rendering pointers/scanline
         uint16_t x, y;
         uint16_t nt_tile;
-        uint8_t curr_pattern_lo;
-        uint8_t curr_pattern_hi;
-        uint8_t next_pattern_lo;
-        uint8_t next_pattern_hi;
+        uint16_t pattern_latch;
+        uint16_split_t pattern_lo;
+        uint16_split_t pattern_hi;
 
         // VRAM
         uint8_t vram[0x800]; // 2kb vram
@@ -140,8 +164,10 @@ namespace nsp
         // ||| || +++++-------- coarse Y scroll
         // ||| ++-------------- nametable select
         // +++----------------- fine Y scroll
-        uint16_t LoopyV;
-        uint16_t LoopyT;
+        // uint16_t LoopyV;
+        // uint16_t LoopyT;
+        loopy_reg_t LoopyV;
+        loopy_reg_t LoopyT;
         uint32_t screen[NES_WIDTH * NES_HEIGHT * 4];
 
         // Mapped CHR ROM

@@ -165,7 +165,35 @@ int main(int argc, char const *argv[])
                                                             emu.cpu.regs.B,
                                                             emu.cpu.regs.O ? "|" : " ",
                                                             emu.cpu.regs.N ? "|" : " ");
+            } else {
+                draw_text(8, 12, "LoopyT: %s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s", ((emu.ppu.LoopyT.val >> 15) & 0x1) ? "|" : " ",
+                                                                            ((emu.ppu.LoopyT.val >> 14) & 0x1) ? "|" : " ",
+                                                                            ((emu.ppu.LoopyT.val >> 13) & 0x1) ? "|" : " ",
+                                                                            ((emu.ppu.LoopyT.val >> 12) & 0x1) ? "|" : " ",
+                                                                            ((emu.ppu.LoopyT.val >> 11) & 0x1) ? "|" : " ",
+                                                                            ((emu.ppu.LoopyT.val >> 10) & 0x1) ? "|" : " ",
+                                                                            ((emu.ppu.LoopyT.val >> 9) & 0x1) ? "|" : " ",
+                                                                            ((emu.ppu.LoopyT.val >> 8) & 0x1) ? "|" : " ",
+                                                                            ((emu.ppu.LoopyT.val >> 7) & 0x1) ? "|" : " ",
+                                                                            ((emu.ppu.LoopyT.val >> 6) & 0x1) ? "|" : " ",
+                                                                            ((emu.ppu.LoopyT.val >> 5) & 0x1) ? "|" : " ",
+                                                                            ((emu.ppu.LoopyT.val >> 4) & 0x1) ? "|" : " ",
+                                                                            ((emu.ppu.LoopyT.val >> 3) & 0x1) ? "|" : " ",
+                                                                            ((emu.ppu.LoopyT.val >> 2) & 0x1) ? "|" : " ",
+                                                                            ((emu.ppu.LoopyT.val >> 1) & 0x1) ? "|" : " ",
+                                                                            ((emu.ppu.LoopyT.val >> 0) & 0x1) ? "|" : " ");
+                draw_text(8, 24, "        %04X", emu.ppu.LoopyT.val);
+                draw_text(8, 36, "fine_x: %s%s%s%s%s%s%s%s", ((emu.ppu.fine_x >> 7) & 0x1) ? "|" : " ",
+                                                             ((emu.ppu.fine_x >> 6) & 0x1) ? "|" : " ",
+                                                             ((emu.ppu.fine_x >> 5) & 0x1) ? "|" : " ",
+                                                             ((emu.ppu.fine_x >> 4) & 0x1) ? "|" : " ",
+                                                             ((emu.ppu.fine_x >> 3) & 0x1) ? "|" : " ",
+                                                             ((emu.ppu.fine_x >> 2) & 0x1) ? "|" : " ",
+                                                             ((emu.ppu.fine_x >> 1) & 0x1) ? "|" : " ",
+                                                             ((emu.ppu.fine_x >> 0) & 0x1) ? "|" : " ");
+                draw_text(8, 48, "        %04X", emu.ppu.fine_x);
             }
+
 
             int32_t state = mfb_update_ex(window, nsp::window_buffer, NES_WIDTH, NES_HEIGHT);
             if (state < 0)
