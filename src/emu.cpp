@@ -26,6 +26,10 @@ nsp::RESULT nsp::init_emu(emu_t& emu, ines_rom_t& ines_rom)
     ppu.LoopyT.val = 0;
     ppu.LoopyV.val = 0;
 
+    // input
+    cpu.input_gp_bit[0] = 0x0;
+    cpu.input_gp_bit[1] = 0x0;
+
     // Clear RAM, stack and VRAM
     memset(cpu.ram, 0, 0x700);
     memset(cpu.stack, 0, 0x100);

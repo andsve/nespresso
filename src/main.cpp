@@ -33,6 +33,18 @@ static void minifb_keyboard_cb(struct mfb_window *window, mfb_key key, mfb_key_m
 {
     nsp::emu_t* emup = (nsp::emu_t*)mfb_get_user_data(window);
 
+    switch (key) {
+        case KB_KEY_RIGHT: emup->gamepads_latch[0].RIGHT = isPressed; break;
+        case KB_KEY_LEFT: emup->gamepads_latch[0].LEFT = isPressed; break;
+        case KB_KEY_DOWN: emup->gamepads_latch[0].DOWN = isPressed; break;
+        case KB_KEY_UP: emup->gamepads_latch[0].UP = isPressed; break;
+        case KB_KEY_M: emup->gamepads_latch[0].START = isPressed; break;
+        case KB_KEY_N: emup->gamepads_latch[0].SELECT = isPressed; break;
+        case KB_KEY_Z: emup->gamepads_latch[0].A = isPressed; break;
+        case KB_KEY_X: emup->gamepads_latch[0].B = isPressed; break;
+        default: break;
+    }
+
     // We are only interested in key releases
     if (isPressed) return;
 
@@ -46,7 +58,7 @@ static void minifb_keyboard_cb(struct mfb_window *window, mfb_key key, mfb_key_m
         case KB_KEY_SPACE:
             running = !running;
             break;
-        case KB_KEY_RIGHT:
+        case KB_KEY_ENTER:
         {
             // step ~one frame, or 1 instruction if shift is pressed
             nsp::RESULT result = nsp::step_emu(*emup, (mod & KB_MOD_SHIFT) == KB_MOD_SHIFT ? 1 : 29781);

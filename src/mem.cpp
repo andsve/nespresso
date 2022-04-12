@@ -162,8 +162,17 @@ uint8_t nsp::handle_memmap_reg_write(emu_t &emu, uint16_t addr, uint16_t data, b
         *handled = true;
         return ppu_reg_write(emu, addr, data);
     } else if (addr == 0x4016 || addr == 0x4017) {
+
+        if (addr == 0x4016) {
+            emu.cpu.input_strobe = (data & 0x1) == 0x1;
+            if (emu.cpu.input_strobe) {
+                emu.gamepads[0].val = emu.gamepads_latch[0].val;
+                emu.gamepads[1].val = emu.gamepads_latch[1].val;
+                emu.cpu.input_gp_bit[0] = 0;
+                emu.cpu.input_gp_bit[1] = 0;
+            }
+        }
         *handled = true;
-        // LOG_D("Unhandled Joypads write!");
     }
 
     return 0x00;
@@ -177,8 +186,20 @@ uint8_t nsp::handle_memmap_reg_read(emu_t &emu, uint16_t addr, bool *handled, bo
         *handled = true;
         return ppu_reg_read(emu, addr, peek);
     } else if (addr == 0x4016 || addr == 0x4017) {
-        // LOG_D("Unhandled Joypads read!");
         *handled = true;
+
+        if (addr == 0x4016) {
+            if (emu.cpu.input_gp_bit[0] >= 8) {
+                return 0x1;
+            } else {
+                emu.cpu.input_gp_bit[0]++;
+                uint8_t ret = emu.gamepads[0].val & 0x1;
+                emu.gamepads[0].val = emu.gamepads[0].val >> 1;
+                return ret;
+            }
+
+        }
+
         return 0x40;
     }
 

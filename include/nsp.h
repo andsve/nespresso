@@ -15,6 +15,18 @@ namespace nsp
         RESULT_OK = 1,
     };
 
+    enum struct GAMEPAD_INPUT
+    {
+        A      = 0,
+        B      = 1,
+        SELECT = 2,
+        START  = 3,
+        UP     = 4,
+        DOWN   = 5,
+        LEFT   = 6,
+        RIGHT  = 7,
+    };
+
     struct ines_rom_t
     {
         uint8_t prg_page_count;
@@ -74,6 +86,10 @@ namespace nsp
         // Currently mapped prg rom banks
         uint8_t* prgrom_lower;
         uint8_t* prgrom_upper;
+
+        // input/gamepad
+        uint8_t input_gp_bit[2];
+        bool input_strobe;
 
         uint8_t _4015;
 
@@ -179,6 +195,20 @@ namespace nsp
         uint32_t cycles;
     };
 
+    union gamepad_t {
+        struct __attribute__((packed)) {
+            uint8_t A : 1;
+            uint8_t B : 1;
+            uint8_t SELECT : 1;
+            uint8_t START : 1;
+            uint8_t UP : 1;
+            uint8_t DOWN : 1;
+            uint8_t LEFT : 1;
+            uint8_t RIGHT : 1;
+        };
+        uint8_t val;
+    };
+
     struct emu_t
     {
         cpu_t cpu;
@@ -187,6 +217,9 @@ namespace nsp
         bool force_red;
         bool force_green;
         bool force_blue;
+
+        gamepad_t gamepads[2];
+        gamepad_t gamepads_latch[2];
         // apu?
     };
 
