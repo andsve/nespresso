@@ -26,6 +26,12 @@ nsp::RESULT nsp::init_emu(emu_t& emu, ines_rom_t& ines_rom)
     ppu.LoopyT.val = 0;
     ppu.LoopyV.val = 0;
 
+    ppu.oam_read_n = 0;
+    ppu.oam_read_m = 0;
+    ppu.oam_write_overflow = false;
+    ppu.oam_buffer_counter = 0;
+    memset(ppu.oam_buffer, 0xff, 32);
+
     // input
     cpu.input_gp_bit[0] = 0x0;
     cpu.input_gp_bit[1] = 0x0;
@@ -49,7 +55,9 @@ nsp::RESULT nsp::init_emu(emu_t& emu, ines_rom_t& ines_rom)
     }
 
     // Map CHR ROM
-    if (ines_rom.chr_page_count == 1) {
+    if (ines_rom.chr_page_count == 0) {
+        ppu.chr_rom = new uint8_t[8 * 1024];
+    } else if (ines_rom.chr_page_count == 1) {
         ppu.chr_rom = ines_rom.chr_pages[0];
     } else {
         LOG_E("TODO: Solve mapping for zero or more than one CHR ROM bank.");

@@ -63,7 +63,8 @@ uint32_t nsp::step_ppu(emu_t& emu, uint32_t max_cycles)
             ppu.ppustatus &= ~0x40;
         }
 
-        check_sprite0_hit(ppu);
+        // check_sprite0_hit(ppu);
+        (void)check_sprite0_hit;
 
         // Wrap to new scanline
         if (ppu.x > 340) {
@@ -121,7 +122,7 @@ bool nsp::ppu_raster(emu_t& emu)
 
     // perform background and sprite data fetch and pixel output
     ppu_bg_pipeline(emu);
-    // ppu_sprite_pipeline(emu);
+    ppu_sprite_pipeline(emu);
 
     uint16_t& x = ppu.x;
     uint16_t& y = ppu.y;
@@ -134,8 +135,64 @@ bool nsp::ppu_raster(emu_t& emu)
         uint16_t pixel_index = render_y*NES_WIDTH+render_x;
         // ppu.screen[pixel_index] = MFB_RGB(ppu.pixel_bg, ppu.pixel_bg, ppu.pixel_bg);
         // ppu.screen[pixel_index] = MFB_RGB(ppu.color_bg, ppu.color_bg, ppu.color_bg);
+        // ppu.screen[pixel_index] = ppu.color_bg;
+
+        // debug: output red if sprite is visible?
+        // if (ppu.color_sp > 0x0) {
+        // if (ppu.pixel_sp > 0x0) {
+        //     if (ppu.sprite_prio == 0)
+        //         ppu.screen[pixel_index] = ppu.color_sp;
+        // }
+
+        // multiplex and prio logic
+
         ppu.screen[pixel_index] = ppu.color_bg;
 
+
+        if (ppu.pixel_sp != 0)
+        {
+            if (ppu.pixel_bg == 0) {
+                ppu.screen[pixel_index] = ppu.color_sp;
+            } else if (ppu.sprite_prio == 0) {
+                ppu.screen[pixel_index] = ppu.color_sp;
+            } else {
+                ppu.screen[pixel_index] = ppu.color_bg;
+            }
+        }
+        /*
+        if (ppu.pixel_bg == 0 && ppu.pixel_sp == 0) {
+            ppu.screen[pixel_index] = ppu.color_bg;
+        } else if (ppu.pixel_bg == 0) {
+            ppu.screen[pixel_index] = ppu.color_sp;
+        } else if (ppu.pixel_sp == 0) {
+            ppu.screen[pixel_index] = ppu.color_bg;
+        } else {
+            if (ppu.sprite_prio == 0)
+                ppu.screen[pixel_index] = ppu.color_sp;
+            else
+                ppu.screen[pixel_index] = ppu.color_bg;
+        }
+        */
+
+        if (ppu.check_sprite0)
+        {
+            // if ((x+y) % 2 == 0)
+            //     ppu.screen[pixel_index] = MFB_RGB(0, 0, 0);
+            if (ppu.pixel_bg > 0 && ppu.pixel_sp > 0)
+            {
+                ppu.ppustatus |= 0x40;
+            }
+        }
+
+        // if (ppu.sprite0_included)
+        // {
+        //     if ((x+y) % 2 == 0)
+        //         ppu.screen[pixel_index] = MFB_RGB(255, 255, 255);
+        // }
+
+        // ppu.screen[pixel_index] = MFB_RGB(255, 255, 255);
+        // if (ppu.pixel_sp != 0)
+        //     ppu.screen[pixel_index] = ppu.color_sp;
     }
 
     return true;
@@ -307,6 +364,343 @@ bool nsp::ppu_bg_pipeline(emu_t& emu)
     return true;
 }
 
+bool nsp::ppu_sprite_pipeline(emu_t& emu)
+{
+    ppu_t& ppu = emu.ppu;
+
+    // this might not be correct
+    if (!ppu.ppumask.show_sprites) {
+        // LOG_D("not rendering sprites");
+        return false;
+    }
+
+
+    uint16_t& x = ppu.x;
+    uint16_t& y = ppu.y;
+
+    // onlt done during visible frames
+    if (y >= 240) {
+        return false;
+    }
+
+    // uint16_t render_x = x - 1;
+    // uint16_t render_y = y;
+
+    ppu.pixel_sp = 0x0;
+    ppu.color_sp = 0x0;
+    ppu.sprite_prio = 0x0;
+
+    /*
+    Every cycle, the 8 x-position counters for the sprites are decremented by one.
+    For each sprite, if the counter is still nonzero, nothing else happens.
+
+    If the counter is zero, the sprite becomes "active", and the respective pair
+    of shift registers for the sprite is shifted once every cycle. This output
+    accompanies the data in the sprite's latch, to form a pixel. The current pixel
+    for each "active" sprite is checked (from highest to lowest priority), and the
+    first non-transparent pixel moves on to a multiplexer, where it joins the BG pixel.
+    */
+    if (x >= 1 && x <= 256) {
+        for (uint8_t i = 0; i < 8; i++)
+        {
+            // output sprite px if x matches
+            if (ppu.sprite_x_counters[i] != 0xff && ppu.sprite_x_counters[i] <= 0 && ppu.sprite_x_counters[i] > -8) {
+
+                // shift out pattern
+                uint8_t p0 = (ppu.sprite_shift_reg0[i] & (0b10000000)) >> 7;
+                uint8_t p1 = (ppu.sprite_shift_reg1[i] & (0b10000000)) >> 7;
+                // p0 &= 0b1;
+                // p1 &= 0b1;
+                ppu.sprite_shift_reg0[i] <<= 1;
+                ppu.sprite_shift_reg1[i] <<= 1;
+                uint8_t pattern = p0 | (p1 << 1);
+
+                if (pattern && !ppu.pixel_sp)
+                {
+                    ppu.pixel_sp = pattern;
+
+                    uint8_t palette_id = ppu.sprite_latches[i] & 0x3;
+                    ppu.sprite_prio = ((ppu.sprite_latches[i] >> 5) & 0x1);
+
+                    // uint8_t palette_ids = emu.ppu.palette[0x11+palette_id*3];
+                    static uint8_t palette_set[3];
+                    palette_set[0] = emu.ppu.palette[0x11+palette_id*4];
+                    palette_set[1] = emu.ppu.palette[0x12+palette_id*4];
+                    palette_set[2] = emu.ppu.palette[0x13+palette_id*4];
+
+                    ppu.color_sp = MFB_RGB(palette_id_to_red(palette_set[pattern-1]), palette_id_to_green(palette_set[pattern-1]), palette_id_to_blue(palette_set[pattern-1]));
+                    if (i == 0 && ppu.sprite0_included) {
+
+                        ppu.sprite0_included = false;
+
+                        // ppu.sprite0_included = true;
+                        if ((ppu.ppustatus & 0x40) != 0x40) {
+                            ppu.check_sprite0 = true;
+                        }
+                    }
+                    // break;
+                }
+                // ppu.color_sp = MFB_RGB(64*pattern, 0, 0);
+
+                // debug
+                // ppu.color_sp = 0xff;
+            }
+        }
+    }
+
+
+    if (x >= 1 && x <= 256) {
+        for (uint8_t i = 0; i < 8; i++)
+        {
+            // decrement x counters
+            if (ppu.sprite_x_counters[i] != 0xff)
+                ppu.sprite_x_counters[i]--;
+        }
+    }
+
+    /*
+    During all visible scanlines, the PPU scans through OAM to determine which
+    sprites to render on the next scanline. Sprites found to be within range
+    are copied into the secondary OAM, which is then used to initialize eight
+    internal sprite output units.
+
+    OAM[n][m] below refers to the byte at offset 4*n + m within OAM,
+    i.e. OAM byte m (0-3) of sprite n (0-63).
+
+    During each pixel clock (341 total per scanline), the PPU accesses OAM
+    in the following pattern:
+
+    1. Cycles 1-64: Secondary OAM (32-byte buffer for current sprites on scanline)
+       is initialized to $FF - attempting to read $2004 will return $FF.
+       Internally, the clear operation is implemented by reading from the OAM and
+       writing into the secondary OAM as usual, only a signal is active that
+       makes the read always return $FF.
+    */
+
+    // todo - might need to only do this during the visible scanlines
+
+    if (x <= 64) {
+        memset(ppu.oam_buffer, 0xff, 32);
+        // ppu.sprite0_included = false;
+        ppu.next_scanline_includes_sprite0 = false;
+
+    } else if (x >= 65 && x <= 256) {
+        if (x == 65) {
+            ppu.oam_read_n = 0;
+            ppu.oam_read_m = 0;
+            ppu.oam_buffer_counter = 0;
+        }
+        bool even_cycle = x % 2 == 0;
+
+        if (even_cycle) {
+            // note: this is where we would read from primary OAM
+        } else {
+            if (ppu.oam_read_n < 64) {
+
+                uint8_t prim_oam_b0 = ppu.oam[ppu.oam_read_n*4+0]; // y
+                uint8_t prim_oam_b1 = ppu.oam[ppu.oam_read_n*4+1]; // tile index
+                uint8_t prim_oam_b2 = ppu.oam[ppu.oam_read_n*4+2]; // attributes
+                uint8_t prim_oam_b3 = ppu.oam[ppu.oam_read_n*4+3]; // x
+
+                // 1) copy y data from primary to secondary OAM
+                ppu.oam_buffer[ppu.oam_buffer_counter*4] = prim_oam_b0;
+
+                // 1a) check if y position is in range
+                if (y >= prim_oam_b0 && y <= prim_oam_b0 + 7)
+                {
+                    // if (ppu.oam_read_n == 0) {
+                    //     LOG_D("sprite zero Y: %d [tile: %d]", prim_oam_b0, prim_oam_b1);
+                    // }
+                    // LOG_D("prim_oam_b1 [%d]: %d", ppu.oam_read_n, prim_oam_b1 & 0b1);
+                    // verify that secondary OAM isn't full!
+                    if (ppu.oam_buffer_counter >= 8) {
+                        // todo: overflow!
+                    } else {
+                        // copy rest of primary OAM bytes
+                        ppu.oam_buffer[ppu.oam_buffer_counter*4+1] = prim_oam_b1;
+                        ppu.oam_buffer[ppu.oam_buffer_counter*4+2] = prim_oam_b2;
+                        ppu.oam_buffer[ppu.oam_buffer_counter*4+3] = prim_oam_b3;
+
+                        ppu.oam_buffer_counter++;
+                    }
+
+                    if (ppu.oam_read_n == 0) {
+                        ppu.next_scanline_includes_sprite0 = true;
+                        // ppu.sprite0_included = true;
+                        // if ((ppu.ppustatus & 0x40) != 0x40) {
+                        //     ppu.check_sprite0 = true;
+                        // }
+                    }
+                }
+
+                // 2) increment n
+                ppu.oam_read_n++;
+
+                // 2a)
+                if (ppu.oam_read_n >= 64) {
+                    // todo: all 64 sprites evaluated, go to "4"
+                } else {
+
+                    // 2b) less than 8 sprites found, go to "1"
+                    if (ppu.oam_buffer_counter < 8) {
+
+                    // 2c) exactly 8 sprites has been found! - disable writes to secondary OAM
+                    } else if (ppu.oam_buffer_counter == 8) {
+
+                    }
+                }
+            }
+
+            // 3) todo: overflow bug, I think?
+        }
+    /*
+    2. Cycles 65-256: Sprite evaluation
+        * On odd cycles, data is read from (primary) OAM
+        * On even cycles, data is written to secondary OAM (unless secondary OAM
+          is full, in which case it will read the value in secondary OAM instead)
+
+        1. Starting at n = 0, read a sprite's Y-coordinate (OAM[n][0], copying it
+           to the next open slot in secondary OAM (unless 8 sprites have been
+           found, in which case the write is ignored).
+            1a. If Y-coordinate is in range, copy remaining bytes of sprite data
+                (OAM[n][1] thru OAM[n][3]) into secondary OAM.
+
+        2. Increment n
+            2a. If n has overflowed back to zero (all 64 sprites evaluated), go to 4
+            2b. If less than 8 sprites have been found, go to 1
+            2c. If exactly 8 sprites have been found, disable writes to secondary
+                OAM because it is full. This causes sprites in back to drop out.
+
+        3. Starting at m = 0, evaluate OAM[n][m] as a Y-coordinate.
+            3a. If the value is in range, set the sprite overflow flag in $2002
+                and read the next 3 entries of OAM (incrementing 'm' after each
+                byte and incrementing 'n' when 'm' overflows); if m = 3, increment n
+            3b. If the value is not in range, increment n *and* m (without carry).
+                If n overflows to 0, go to 4; otherwise go to 3
+
+                * The m increment is a hardware bug - if only n was incremented,
+                  the overflow flag would be set whenever more than 8 sprites
+                  were present on the same scanline, as expected.
+
+        4. Attempt (and fail) to copy OAM[n][0] into the next free slot in
+           secondary OAM, and increment n (repeat until HBLANK is reached)
+    */
+
+        // clear sprite fetch counter for next sprite logic
+        ppu.sprite_fetch = 0;
+
+    } else if (x >= 257 && x <= 320) {
+
+        // clear stuff for next scanline?
+        if (x == 257) {
+            for (uint8_t i = 0; i < 8; i++)
+            {
+                ppu.sprite_x_counters[i] = 0xff;
+            }
+        }
+
+        uint8_t fetch_cycle = (x - 1) % 8;
+
+        // note: this should be spread out over the 8 cycles,
+        //       but should probably be fine to do it all once here?
+        if (fetch_cycle == 6) {
+            // todo fetch tile info
+
+            uint8_t sprite_data0 = ppu.oam_buffer[ppu.sprite_fetch*4+0]; // y
+            uint8_t sprite_data1 = ppu.oam_buffer[ppu.sprite_fetch*4+1]; // tile
+            uint8_t sprite_data2 = ppu.oam_buffer[ppu.sprite_fetch*4+2]; // attr
+            uint8_t sprite_data3 = ppu.oam_buffer[ppu.sprite_fetch*4+3]; // x
+
+            // check if sprite fetch has valid sprite
+            // if (sprite_data0 != 0xff &&
+            //     sprite_data1 != 0xff &&
+            //     sprite_data2 != 0xff &&
+            //     sprite_data3 != 0xff) {
+
+                // fill x coord and fill sprite_x_counters
+                ppu.sprite_x_counters[ppu.sprite_fetch] = (uint16_t)sprite_data3;
+
+                // read attribs
+                bool flip_x = !!(sprite_data2 & (1 << 6));
+                bool flip_y = !!(sprite_data2 & (1 << 7));
+                // bool prio = !!(sprite_data2 & (1 << 7));
+
+                // fill sprite_shift_reg0 and sprite_shift_reg1 with pattern data
+                uint16_t chr_offset = 0x0;
+                if ((emu.ppu.ppuctrl >> 3) & 0x1) {
+                    chr_offset = 0x1000;
+                }
+
+                uint8_t y_offset = (y - sprite_data0);
+                if (flip_y) {
+                    y_offset = 7 - y_offset;
+                }
+                uint8_t tile_index = sprite_data1;
+                uint8_t* chr_data = (uint8_t*)emu.ppu.chr_rom+(tile_index*16)+chr_offset+y_offset;
+
+                // clear reg
+                ppu.sprite_shift_reg0[ppu.sprite_fetch] = 0x0;
+                ppu.sprite_shift_reg1[ppu.sprite_fetch] = 0x0;
+
+                // bits
+                uint8_t lo = *chr_data;
+                uint8_t hi = *(chr_data+8);
+                if (flip_x) {
+                    for (uint8_t i = 0; i < 8; i++)
+                    {
+                        ppu.sprite_shift_reg0[ppu.sprite_fetch] |= ((lo >> (7 - i)) & 0x1) << i;
+                        ppu.sprite_shift_reg1[ppu.sprite_fetch] |= ((hi >> (7 - i)) & 0x1) << i;
+                    }
+                } else {
+                    ppu.sprite_shift_reg0[ppu.sprite_fetch] = lo;
+                    ppu.sprite_shift_reg1[ppu.sprite_fetch] = hi;
+                }
+
+                // if (ppu.sprite_fetch == 0) {
+                //     LOG_D("pattern for [tile: %d]: %d %d", sprite_data1, ppu.sprite_shift_reg0[ppu.sprite_fetch], ppu.sprite_shift_reg1[ppu.sprite_fetch]);
+                // }
+
+
+                // todo fill sprite_latches with attribute bytes
+                ppu.sprite_latches[ppu.sprite_fetch] = sprite_data2;
+                // uint8_t palette_id = sprite_data2 & 0x3;
+
+                // // uint8_t palette_ids = emu.ppu.palette[0x11+palette_id*3];
+                // palette_set[0] = emu.ppu.palette[0x11+palette_id*4];
+                // palette_set[1] = emu.ppu.palette[0x12+palette_id*4];
+                // palette_set[2] = emu.ppu.palette[0x13+palette_id*4];
+            // }
+
+            if (x == 319) {
+                ppu.check_sprite0 = false;
+
+                ppu.sprite0_included = ppu.next_scanline_includes_sprite0;
+            }
+
+        } else if (fetch_cycle == 7) {
+            ppu.sprite_fetch++;
+        }
+
+    /*
+    3. Cycles 257-320: Sprite fetches (8 sprites total, 8 cycles per sprite)
+        * 1-4: Read the Y-coordinate, tile number, attributes, and X-coordinate
+               of the selected sprite from secondary OAM
+        * 5-8: Read the X-coordinate of the selected sprite from secondary
+               OAM 4 times (while the PPU fetches the sprite tile data)
+        * For the first empty sprite slot, this will consist of sprite #63's
+          Y-coordinate followed by 3 $FF bytes; for subsequent empty sprite
+          slots, this will be four $FF bytes
+    */
+    }
+    /*
+    4. Cycles 321-340+0: Background render pipeline initialization
+        * Read the first byte in secondary OAM (while the PPU fetches the
+          first two background tiles for the next scanline)
+    */
+
+    return true;
+}
+
 static bool get_chr_row(nsp::ppu_t& ppu, uint16_t addr, uint8_t row, uint8_t* out_pixel_row, bool bg)
 {
     if (!ppu.chr_rom) {
@@ -356,6 +750,7 @@ static bool get_chr_row(nsp::ppu_t& ppu, uint16_t addr, uint8_t row, uint8_t* ou
 
 static void check_sprite0_hit(nsp::ppu_t& ppu)
 {
+    ppu.ppustatus |= 0x40;
     if ((ppu.ppustatus & 0x40) == 0x40) {
         return;
     }
@@ -578,8 +973,8 @@ uint8_t nsp::ppu_write_vram(emu_t& emu, uint16_t addr, uint8_t data)
     if (addr < 0x2000) // pattern tables
     {
         uint8_t old_data = ppu.chr_rom[addr];
-        LOG_E("WRITING to CHR ROM: 0x%04x", addr);
-        // ppu.chr_rom[addr] = data;
+        // LOG_E("WRITING to CHR ROM: 0x%04x", addr);
+        ppu.chr_rom[addr] = data;
         return old_data;
 
     } else if (addr < 0x3F00) { // nametables

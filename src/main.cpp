@@ -131,8 +131,8 @@ int main(int argc, char const *argv[])
         {
             if (running)
             {
-                // result = nsp::step_emu(emu, 29781); // around 60 NES frames per 60 "real" frames
-                result = nsp::step_emu_until_frame_done(emu);
+                result = nsp::step_emu(emu, 29781); // around 60 NES frames per 60 "real" frames
+                // result = nsp::step_emu_until_frame_done(emu);
                 if (nsp::RESULT_OK != result) return 1;
             }
 
@@ -152,7 +152,20 @@ int main(int argc, char const *argv[])
                 }
             }
 
-            dump_ppu_sprites(emu);
+            // dump_ppu_sprites(emu);
+            // dump_chr_rom(emu);
+
+            // LOG_D("----");
+            // for (int i = 0; i < 64; ++i)
+            // {
+
+            //     // uint8_t prim_oam_b0 = ppu.oam[i*4+0]; // y
+            //     uint8_t prim_oam_b1 = emu.ppu.oam[i*4+1]; // tile index
+            //     // uint8_t prim_oam_b2 = ppu.oam[i*4+2]; // attributes
+            //     // uint8_t prim_oam_b3 = ppu.oam[i*4+3]; // x
+            //     LOG_D("[%d]: %d", i, prim_oam_b1);
+            // }
+            // LOG_D("----");
 
 
             if (!running) {

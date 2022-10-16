@@ -181,6 +181,29 @@ namespace nsp
         uint8_t pixel_sp;
         uint32_t color_bg;
         uint32_t color_sp;
+        uint8_t sprite_prio;
+
+        uint8_t oam_read_n;
+        uint8_t oam_read_m;
+        bool oam_write_overflow;
+        uint8_t oam_buffer_counter;
+        uint8_t oam_buffer[8*4]; // Secondary OAM (holds 8 sprites for the current scanline)
+
+        uint8_t sprite_shift_reg0[8];
+        uint8_t sprite_shift_reg1[8];
+        uint8_t sprite_latches[8];
+        int16_t sprite_x_counters[8];
+        uint8_t sprite_fetch;
+        bool check_sprite0;
+        uint8_t sprite0_included;
+        uint8_t next_scanline_includes_sprite0;
+        /*
+        8 pairs of 8-bit shift registers - These contain the pattern table data for up to 8 sprites,
+          to be rendered on the current scanline. Unused sprites are loaded with an all-transparent set of values.
+        8 latches - These contain the attribute bytes for up to 8 sprites.
+        8 counters - These contain the X positions for up to 8 sprites.
+        */
+
         uint32_t screen[NES_WIDTH * NES_HEIGHT * 4];
 
         // VRAM
@@ -253,6 +276,7 @@ namespace nsp
     uint8_t ppu_read_vram(emu_t& emu, uint16_t addr);
     bool ppu_raster(emu_t& emu);
     bool ppu_bg_pipeline(emu_t& emu);
+    bool ppu_sprite_pipeline(emu_t& emu);
     uint8_t* dma_ptr(emu_t &emu, uint16_t addr);
 
     uint8_t handle_memmap_reg_read(emu_t &emu, uint16_t addr, bool *handled, bool peek);

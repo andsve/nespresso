@@ -166,7 +166,7 @@ void dump_ppu_vram(nsp::emu_t& emu)
 
 void dump_ppu_sprites(nsp::emu_t& emu)
 {
-    uint8_t palette_set[3];
+    static uint8_t palette_set[3];
     for (uint32_t sprite_i = 0; sprite_i < 64; ++sprite_i)
     {
         uint8_t sprite_data0 = emu.ppu.oam[sprite_i*4+0]; // y
@@ -212,7 +212,7 @@ void dump_chr_rom(nsp::emu_t& emu)
     {
         for (uint32_t xi = 0; xi < 16; ++xi)
         {
-            blit_chr(emu, xi*8, 1+yi*8, chr_i, true, false, false, 0x0); // ignore fliping for now
+            blit_chr(emu, xi*8, 1+yi*8, chr_i, false, false, false, 0x0); // ignore fliping for now
 
             chr_i++;
         }
