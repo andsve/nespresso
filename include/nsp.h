@@ -34,6 +34,8 @@ namespace nsp
 
         uint8_t** prg_pages;
         uint8_t** chr_pages;
+
+        uint8_t mirroring;
     };
 
     struct cpu_t
@@ -210,6 +212,7 @@ namespace nsp
         uint8_t vram[0x800]; // 2kb vram
         uint8_t palette[0xFF];
         uint8_t oam[64*4];
+        uint8_t mirroring;
 
         // Mapped CHR ROM
         uint8_t* chr_rom;
@@ -274,6 +277,7 @@ namespace nsp
     uint8_t ppu_reg_write(emu_t& emu, uint16_t addr, uint8_t data);
     uint8_t ppu_write_vram(emu_t& emu, uint16_t addr, uint8_t data);
     uint8_t ppu_read_vram(emu_t& emu, uint16_t addr);
+    uint16_t base_nt_addr(emu_t& emu);
     bool ppu_raster(emu_t& emu);
     bool ppu_bg_pipeline(emu_t& emu);
     bool ppu_sprite_pipeline(emu_t& emu);
@@ -283,6 +287,7 @@ namespace nsp
     uint8_t ppu_reg_read(emu_t& emu, uint16_t addr, bool peek);
 
     extern uint32_t window_buffer[];
+    extern uint32_t nt_window_buffer[];
 }
 
 #endif /* NSP_H */

@@ -42,6 +42,9 @@ nsp::RESULT nsp::init_emu(emu_t& emu, ines_rom_t& ines_rom)
     memset(ppu.vram, 0, 0x800);
     memset(ppu.palette, 0, 0xFF);
 
+    // Update mirror and mapper (TODO)
+    ppu.mirroring = ines_rom.mirroring;
+
     // Map PRG ROM
     if (ines_rom.prg_page_count == 1) {
         cpu.prgrom_lower = ines_rom.prg_pages[0];

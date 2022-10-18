@@ -14,6 +14,38 @@ void clear_window_buffer(uint8_t r, uint8_t g, uint8_t b)
     }
 }
 
+void clear_nt_window_buffer(uint8_t r, uint8_t g, uint8_t b)
+{
+    for (uint32_t i = 0; i < 32*8*2 * 30*8*2; i++)
+    {
+        nsp::nt_window_buffer[i] = MFB_RGB(r, g, b);
+    }
+}
+
+void rect_nt_window_buffer(uint16_t x0, uint16_t y0, uint16_t x1, uint16_t y1, uint8_t r, uint8_t g, uint8_t b)
+{
+    uint16_t w = x1 - x0;
+    // uint16_t h = y1 - y0;
+    for (uint32_t y = y0; y <= y1; y++)
+    {
+        for (uint32_t x = x0; x <= x1;)
+        {
+            uint32_t i = y*(32*8*2) + x;
+            // if (i < 32*8*2*30*8*2)
+            i = i % (32*8*2*30*8*2);
+            nsp::nt_window_buffer[i] = MFB_RGB(r, g, b);
+
+            if (y == y0 || y == y1)
+            {
+                x++;
+            } else {
+                x+=w;
+            }
+        }
+    }
+
+}
+
 void dimm_window_buffer(float dimm)
 {
     for (uint32_t i = 0; i < NES_WIDTH * NES_HEIGHT; i++)
@@ -199,6 +231,40 @@ void draw_text(uint32_t x, uint32_t y, const char* text, ...)
     while (*glyphs != 0x0)
     {
         draw_glyph(x, y, *glyphs);
+        x+=8;
+        glyphs++;
+    }
+}
+
+void draw_glyph_nt(uint32_t x, uint32_t y, uint8_t glyph)
+{
+    for (uint32_t gy = 0; gy < 8; ++gy)
+    {
+        for (uint32_t gx = 0; gx < 8; ++gx)
+        {
+            uint32_t bi = (y+gy)*(32*8*2)+(x+gx);
+            if (((font8x8_basic[glyph][gy]) & (1 << gx)) > 0)
+            {
+                nsp::nt_window_buffer[bi] = MFB_RGB(255, 255, 255);
+            }
+        }
+    }
+}
+
+void draw_text_nt(uint32_t x, uint32_t y, const char* text, ...)
+{
+
+    static char _buffer[2048];
+    static va_list va;
+
+    va_start(va, text);
+    vsprintf(_buffer, text, va);
+    va_end(va);
+
+    char* glyphs = _buffer;
+    while (*glyphs != 0x0)
+    {
+        draw_glyph_nt(x, y, *glyphs);
         x+=8;
         glyphs++;
     }

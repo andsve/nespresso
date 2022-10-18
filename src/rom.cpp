@@ -74,6 +74,7 @@ nsp::RESULT nsp::load_rom_mem(const uint8_t* data, long int size, ines_rom_t& ro
     rom.chr_page_count = data[5];
 
     // Get most relevant data from header byte 6 and 7
+    rom.mirroring = data[6] & 0x1;
     uint8_t mapper_id = (data[6] & 0xF0) >> 4;
     mapper_id = (data[7] & (0xF0 << 4)) | mapper_id;
     bool ines_v2 = (data[7] & (0x3 << 2)) == 0x08;

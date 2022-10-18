@@ -125,6 +125,88 @@ static void blit_chr(nsp::emu_t& emu, uint32_t blit_x, uint32_t blit_y, uint32_t
     }
 }
 
+static void blit_chr_nt(nsp::emu_t& emu, uint32_t blit_x, uint32_t blit_y, uint32_t chr_index, bool bg, bool flip_x, bool flip_y, uint8_t* palette_set)
+{
+    uint8_t chr[8*8];
+    if (!ppu_get_chr(emu, chr_index*16, chr, bg))
+    {
+        return;
+    }
+
+    for (uint32_t y = 0; y < 8; ++y)
+    {
+        for (uint32_t x = 0; x < 8; ++x)
+        {
+            uint8_t pix = chr[y*8+x];
+
+            if (!bg && pix == 0x0)
+                continue;
+
+            uint32_t tx = blit_x + (flip_x ? 7 - x : x);
+            uint32_t ty = blit_y + (flip_y ? 7 - y : y);
+
+            uint32_t ti = ty*(32*8*2) + tx;
+
+            if (bg && pix == 0x0) {
+                uint32_t palette_bg = emu.ppu.palette[0x00];
+                nsp::nt_window_buffer[ti] = MFB_RGB(palette_id_to_red(palette_bg), palette_id_to_green(palette_bg), palette_id_to_blue(palette_bg));
+            } else if (palette_set == 0x0) {
+                nsp::nt_window_buffer[ti] = MFB_RGB(gray_palette[pix*3], gray_palette[pix*3], gray_palette[pix*3]);
+            } else {
+                nsp::nt_window_buffer[ti] = MFB_RGB(palette_id_to_red(palette_set[pix-1]), palette_id_to_green(palette_set[pix-1]), palette_id_to_blue(palette_set[pix-1]));
+            }
+        }
+    }
+}
+
+void dump_ppu_nametables(nsp::emu_t& emu)
+{
+    uint8_t palette_set[3];
+    uint16_t base_nt_addr = 0x2000;
+    for (uint8_t nt_i = 0x0; nt_i < 4; nt_i++)
+    {
+        uint8_t nt_x = nt_i % 2;
+        uint8_t nt_y = nt_i / 2;
+        for (uint32_t yi = 0; yi < 30; ++yi)
+        {
+            for (uint32_t xi = 0; xi < 32; ++xi)
+            {
+
+                uint32_t nti = yi*32+xi;
+                if (nti >= 0x800) {
+                    LOG_E("trying to access vram out of bounds!\n");
+                }
+                // uint8_t chr_i = emu.ppu.vram[base_nt_addr+nti];
+                uint8_t chr_i = ppu_read_vram(emu, base_nt_addr+nti);
+
+                // find correct attribute
+                unsigned short attribute_addr = ((yi / 4)*8)+(xi / 4);
+                uint8_t attribute = ppu_read_vram(emu, base_nt_addr+attribute_addr+0x3C0);
+                // uint8_t attribute = emu.ppu.vram[attribute_addr+0x3C0];
+
+                uint32_t sub_x = (xi / 2) % 2;
+                uint32_t sub_y = (yi / 2) % 2;
+                uint32_t palette_id = 0;
+
+                if (sub_x == 0 && sub_y == 0) {
+                    palette_id = attribute & 0x3;
+                } else if (sub_x == 1 && sub_y == 0) {
+                    palette_id = (attribute >> 2) & 0x3;
+                } else if (sub_x == 0 && sub_y == 1) {
+                    palette_id = (attribute >> 4) & 0x3;
+                } else if (sub_x == 1 && sub_y == 1) {
+                    palette_id = (attribute >> 6) & 0x3;
+                }
+                palette_set[0] = emu.ppu.palette[0x01+palette_id*4];
+                palette_set[1] = emu.ppu.palette[0x02+palette_id*4];
+                palette_set[2] = emu.ppu.palette[0x03+palette_id*4];
+                blit_chr_nt(emu, xi*8 + nt_x*(32*8), yi*8 + nt_y*(30*8), chr_i, true, false, false, palette_set); // ignore fliping for now
+            }
+        }
+        base_nt_addr+=0x400;
+    }
+}
+
 void dump_ppu_vram(nsp::emu_t& emu)
 {
     uint8_t palette_set[3];

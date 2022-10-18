@@ -12,6 +12,7 @@
 #define NESTEST_PATH "../data/nestest.nes"
 
 uint32_t nsp::window_buffer[NES_WIDTH * NES_HEIGHT * 4];
+uint32_t nsp::nt_window_buffer[(32*8*2) * (30*8*2) * 4];
 
 static void draw_spinner(nsp::emu_t& emu)
 {
@@ -97,6 +98,7 @@ int main(int argc, char const *argv[])
     if (nsp::RESULT_OK != result) return 1;
 
     struct mfb_window *window = 0x0;
+    struct mfb_window *nt_window = 0x0;
     if (validate_nestest_log)
     {
         // Attach nestest logging mechanism
@@ -110,7 +112,9 @@ int main(int argc, char const *argv[])
         emu.ppu.y = 0;
     } else {
         clear_window_buffer(255, 0, 0);
+        clear_nt_window_buffer(255, 0, 0);
         window = mfb_open_ex("nespresso", NES_WIDTH, NES_HEIGHT, WF_RESIZABLE);
+        nt_window = mfb_open_ex("nametables", 32*8*2, 30*8*2, WF_RESIZABLE);
         mfb_set_user_data(window, (void*)&emu);
         mfb_set_keyboard_callback(window, minifb_keyboard_cb);
     }
@@ -221,8 +225,30 @@ int main(int argc, char const *argv[])
                 */
             }
 
+            // NT debug stuff
+            clear_nt_window_buffer(255, 0, 0);
+            dump_ppu_nametables(emu);
+            uint32_t rw = NES_WIDTH;
+            uint32_t rh = NES_HEIGHT;
+            uint32_t tx = emu.ppu.LoopyT.coarse_x*8;
+            uint32_t ty = emu.ppu.LoopyT.coarse_y*8;
+
+            if (emu.ppu.LoopyT.nt == 1) {
+                tx += 32*8;
+            } else if (emu.ppu.LoopyT.nt == 2) {
+                ty += 30*8;
+            } else if (emu.ppu.LoopyT.nt == 3) {
+                tx += 32*8;
+                ty += 30*8;
+            }
+            rect_nt_window_buffer(tx, ty, tx+rw, ty+rh, 255, 0, 0);
+            draw_text_nt(8, 12, "COARSE Y: %u", emu.ppu.LoopyT.coarse_y);
+
 
             int32_t state = mfb_update_ex(window, nsp::window_buffer, NES_WIDTH, NES_HEIGHT);
+            if (state < 0)
+                break;
+            state = mfb_update_ex(nt_window, nsp::nt_window_buffer, 32*8*2, 30*8*2);
             if (state < 0)
                 break;
 

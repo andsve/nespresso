@@ -278,7 +278,18 @@ bool nsp::ppu_bg_pipeline(emu_t& emu)
 
             } else if (fetch_tick == 2) {
                 // NT byte
-                uint16_t nt_addr = 0x2000 | (ppu.LoopyV.val & 0x0FFF);
+                uint16_t nt_base_ddr = 0x2000;
+                // uint16_t nt_base_ddr = base_nt_addr(emu);
+                // uint8_t ppuctrl_nt = ppu.ppuctrl & 0x3;
+                // if (ppuctrl_nt == 0x1) {
+                //     nt_base_ddr = 0x2400;
+                // } else if (ppuctrl_nt == 0x2) {
+                //     nt_base_ddr = 0x2800;
+                // } else if (ppuctrl_nt == 0x3) {
+                //     nt_base_ddr = 0x2C00;
+                // }
+
+                uint16_t nt_addr = nt_base_ddr | (ppu.LoopyV.val & 0x0FFF);
                 ppu.nt_tile = ppu_read_vram(emu, nt_addr);
 
             } else if (fetch_tick == 4) {
@@ -323,6 +334,7 @@ bool nsp::ppu_bg_pipeline(emu_t& emu)
             if ((ppu.LoopyV.coarse_x) == 31) { // if coarse X == 31
               ppu.LoopyV.coarse_x = 0x0; // coarse X = 0
               ppu.LoopyV.nt ^= 0x1;      // switch horizontal nametable
+              // ppu.LoopyV.val ^= 0x0400;           // switch horizontal nametable
             } else {
               ppu.LoopyV.val += 1;       // increment coarse X
             }
@@ -338,13 +350,15 @@ bool nsp::ppu_bg_pipeline(emu_t& emu)
               uint16_t ty = ppu.LoopyV.coarse_y;        // let y = coarse Y
               if (ty == 29) {
                 ty = 0;                                 // coarse Y = 0
-                ppu.LoopyV.val ^= 0x10;                 // switch vertical nametable
+                // ppu.LoopyV.val ^= 0x10;                 // switch vertical nametable
+                ppu.LoopyV.val ^= 0x0800;                    // switch vertical nametable
               } else if (ty == 31) {
                 ty = 0;                                 // coarse Y = 0, nametable not switched
               } else {
                 ty += 1;                                // increment coarse Y
               }
-              ppu.LoopyV.coarse_y = ty; // put coarse Y back into v
+              // ppu.LoopyV.coarse_y = ty; // put coarse Y back into v
+              ppu.LoopyV.val = (ppu.LoopyV.val & ~0x03E0) | (ty << 5);
             }
         } else if (x == 257) {
             // hori(v) = hori(t)
@@ -791,7 +805,20 @@ static void check_sprite0_hit(nsp::ppu_t& ppu)
     }
 }
 
+uint16_t nsp::base_nt_addr(emu_t& emu)
+{
+    ppu_t& ppu = emu.ppu;
+    uint8_t base_nt_r = ppu.ppuctrl & 0x3;
+    switch (base_nt_r)
+    {
+        case 0: return 0x2000;
+        case 1: return 0x2400;
+        case 2: return 0x2800;
+        case 3: return 0x2C00;
+    }
 
+    return 0x2000;
+}
 
 uint8_t nsp::ppu_reg_write(emu_t& emu, uint16_t addr, uint8_t data)
 {
@@ -885,7 +912,9 @@ uint8_t nsp::ppu_reg_write(emu_t& emu, uint16_t addr, uint8_t data)
             } else if (ppu.scroll_toggle == 1) {
                 // t: FGH..AB CDE..... <- d: ABCDEFGH
                 // w:                  <- 0
-                ppu.LoopyT.coarse_y = (data & 0b11111000) << 2;
+                // ppu.LoopyT.coarse_y = (data & 0b11111000) << 2;
+                ppu.LoopyT.coarse_y = (data & 0b11111000) >> 3;
+                // LOG_D("ppu.LoopyT.coarse_y: %d [data: %d]", ppu.LoopyT.coarse_y, data);
                 ppu.LoopyT.fine_y = data & 0b111;
 
 
@@ -978,7 +1007,17 @@ uint8_t nsp::ppu_write_vram(emu_t& emu, uint16_t addr, uint8_t data)
         return old_data;
 
     } else if (addr < 0x3F00) { // nametables
-        uint16_t wrapped_addr = (addr - 0x2000) % 0x800;
+        uint16_t t_addr = addr - 0x2000;
+        if (ppu.mirroring == 0) {
+            if (addr < 0x2800) {
+                t_addr = t_addr % 0x400;
+            } else {
+                t_addr = (t_addr - 0x800) % 0x400;
+                t_addr = t_addr + 0x400;
+            }
+        }
+
+        uint16_t wrapped_addr = t_addr % 0x800;
 
         uint8_t old_data = ppu.vram[wrapped_addr];
         ppu.vram[wrapped_addr] = data;
@@ -1013,7 +1052,17 @@ uint8_t nsp::ppu_read_vram(emu_t& emu, uint16_t addr)
         return ppu.chr_rom[addr];
 
     } else if (addr < 0x3F00) { // nametables
-        uint16_t wrapped_addr = (addr - 0x2000) % 0x800;
+        uint16_t t_addr = addr - 0x2000;
+        if (ppu.mirroring == 0) {
+            if (addr < 0x2800) {
+                t_addr = t_addr % 0x400;
+            } else {
+                t_addr = (t_addr - 0x800) % 0x400;
+                t_addr = t_addr + 0x400;
+            }
+        }
+        // uint16_t wrapped_addr = (t_addr - 0x2000) % 0x800;
+        uint16_t wrapped_addr = t_addr % 0x800;
         return ppu.vram[wrapped_addr];
 
     } else if (addr < 0x3FFF) { // palettes
