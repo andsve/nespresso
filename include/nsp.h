@@ -27,6 +27,14 @@ namespace nsp
         RIGHT  = 7,
     };
 
+    struct emu_t;
+    struct ines_rom_t;
+    struct mapper_t
+    {
+        uint32_t mapper_id;
+        virtual RESULT map_initial_prg(ines_rom_t& ines_rom, emu_t& emu) { return RESULT_ERROR; };
+    };
+
     struct ines_rom_t
     {
         uint8_t prg_page_count;
@@ -36,6 +44,7 @@ namespace nsp
         uint8_t** chr_pages;
 
         uint8_t mirroring;
+        mapper_t* mapper;
     };
 
     struct cpu_t
@@ -243,6 +252,9 @@ namespace nsp
         bool force_red;
         bool force_green;
         bool force_blue;
+
+        // Mapper
+        mapper_t* mapper;
 
         gamepad_t gamepads[2];
         gamepad_t gamepads_latch[2];

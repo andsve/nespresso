@@ -1159,6 +1159,9 @@ uint8_t nsp::ppu_reg_read(emu_t &emu, uint16_t addr, bool peek)
             ppu.LoopyV.val = addr;
 
             ppu.read_buffer = read_data;
+
+            if (is_palette) // palette read is not buffered
+                return read_data;
             return prev_data;
         }
         default:

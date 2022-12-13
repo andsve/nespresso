@@ -135,8 +135,8 @@ int main(int argc, char const *argv[])
         {
             if (running)
             {
-                // result = nsp::step_emu(emu, 29781); // around 60 NES frames per 60 "real" frames
-                result = nsp::step_emu_until_frame_done(emu);
+                result = nsp::step_emu(emu, 29781); // around 60 NES frames per 60 "real" frames
+                // result = nsp::step_emu_until_frame_done(emu);
                 if (nsp::RESULT_OK != result) return 1;
             }
 

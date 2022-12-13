@@ -6,6 +6,7 @@
 
 #include "nsp.h"
 #include "nsp_log.h"
+#include "nsp_mappers.h"
 
 // NesDev iNES: https://wiki.nesdev.com/w/index.php/INES
 //          v2: https://wiki.nesdev.com/w/index.php/NES_2.0
@@ -84,14 +85,26 @@ nsp::RESULT nsp::load_rom_mem(const uint8_t* data, long int size, ines_rom_t& ro
         return RESULT_ERROR;
     }
 
-    if (mapper_id != 0) {
-        LOG_E("Only mapper 0 supported!");
-        return RESULT_ERROR;
+    // if (mapper_id != 0) {
+    //     LOG_E("Only mapper 0 supported, found: %d!", mapper_id);
+    //     return RESULT_ERROR;
+    // }
+    switch (mapper_id) {
+        case 0:
+            rom.mapper = new nsp::mapper_000_t();
+            break;
+        case 1:
+            rom.mapper = new nsp::mapper_001_t();
+            break;
+        default:
+            LOG_E("Mapper %d currently not supported!", mapper_id);
+            return RESULT_ERROR;
     }
 
     // Allocate memory to store PRG and CHR data from end of file
     rom.prg_pages = new uint8_t*[rom.prg_page_count];
-    rom.chr_pages = new uint8_t*[rom.chr_page_count];
+    if (rom.chr_page_count > 0)
+        rom.chr_pages = new uint8_t*[rom.chr_page_count];
 
     // Copy PRG data
     const uint8_t* data_ptr = &data[16];

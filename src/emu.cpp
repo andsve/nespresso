@@ -44,18 +44,20 @@ nsp::RESULT nsp::init_emu(emu_t& emu, ines_rom_t& ines_rom)
 
     // Update mirror and mapper (TODO)
     ppu.mirroring = ines_rom.mirroring;
+    emu.mapper = ines_rom.mapper;
 
     // Map PRG ROM
-    if (ines_rom.prg_page_count == 1) {
-        cpu.prgrom_lower = ines_rom.prg_pages[0];
-        cpu.prgrom_upper = ines_rom.prg_pages[0];
-    } else if (ines_rom.prg_page_count == 2) {
-        cpu.prgrom_lower = ines_rom.prg_pages[0];
-        cpu.prgrom_upper = ines_rom.prg_pages[1];
-    } else {
-        LOG_E("TODO: Solve mapping for more than two PRG ROM bank.");
-        return RESULT_ERROR;
-    }
+    // if (ines_rom.prg_page_count == 1) {
+    //     cpu.prgrom_lower = ines_rom.prg_pages[0];
+    //     cpu.prgrom_upper = ines_rom.prg_pages[0];
+    // } else if (ines_rom.prg_page_count == 2) {
+    //     cpu.prgrom_lower = ines_rom.prg_pages[0];
+    //     cpu.prgrom_upper = ines_rom.prg_pages[1];
+    // } else {
+    //     LOG_E("TODO: Solve mapping for more than two PRG ROM bank.");
+    //     return RESULT_ERROR;
+    // }
+    ines_rom.mapper->map_initial_prg(ines_rom, emu);
 
     // Map CHR ROM
     if (ines_rom.chr_page_count == 0) {
