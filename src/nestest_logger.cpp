@@ -282,7 +282,7 @@ static void tmp_cb_debug_fetch_instr(uint8_t instruction, uint32_t ticks)
 {
     emu_ticks = ticks;
     emu_instr = instruction;
-    emu_line_cursor += sprintf(&emu_line[emu_line_cursor], "%04X  %02X ", cpu->regs.PC, instruction);
+    emu_line_cursor += snprintf(&emu_line[emu_line_cursor], 256, "%04X  %02X ", cpu->regs.PC, instruction);
 }
 
 static void tmp_cb_debug_addr_mode(nsp::NES_OP_ADDR_MODES mode)
@@ -292,12 +292,12 @@ static void tmp_cb_debug_addr_mode(nsp::NES_OP_ADDR_MODES mode)
 
 static void tmp_cb_debug_mem_write(uint16_t addr, uint8_t prev_data, uint8_t new_data)
 {
-    emu_line_cursor += sprintf(&emu_line[emu_line_cursor], "= %02X", prev_data);
+    emu_line_cursor += snprintf(&emu_line[emu_line_cursor], 256, "= %02X", prev_data);
 }
 
 static void tmp_cb_debug_reg_write(char reg)
 {
-    emu_line_cursor += sprintf(&emu_line[emu_line_cursor], " %c", reg);
+    emu_line_cursor += snprintf(&emu_line[emu_line_cursor], 256, " %c", reg);
 }
 
 static void tmp_cb_debug_mem_read(uint16_t addr1, uint16_t addr2, uint16_t data)
@@ -306,54 +306,54 @@ static void tmp_cb_debug_mem_read(uint16_t addr1, uint16_t addr2, uint16_t data)
     switch (emu_addr_mode)
     {
         case nsp::Const:
-            emu_line_cursor += sprintf(&emu_line[emu_line_cursor], "%02X    %s #$%02X ", data, NES_OPS_LUT_SHORT[emu_instr], data);
+            emu_line_cursor += snprintf(&emu_line[emu_line_cursor], 256, "%02X    %s #$%02X ", data, NES_OPS_LUT_SHORT[emu_instr], data);
         break;
 
         case nsp::Absolute:
-            emu_line_cursor += sprintf(&emu_line[emu_line_cursor], "%02X %02X %s $%04X ", (0x00FF & addr1), (0xFF00 & addr1) >> 8, NES_OPS_LUT_SHORT[emu_instr], addr1);
+            emu_line_cursor += snprintf(&emu_line[emu_line_cursor], 256, "%02X %02X %s $%04X ", (0x00FF & addr1), (0xFF00 & addr1) >> 8, NES_OPS_LUT_SHORT[emu_instr], addr1);
         break;
 
         case nsp::Absolute_ZP:
-            emu_line_cursor += sprintf(&emu_line[emu_line_cursor], "%02X    %s $%02X ", addr1, NES_OPS_LUT_SHORT[emu_instr], 0xFF & addr1);
+            emu_line_cursor += snprintf(&emu_line[emu_line_cursor], 256, "%02X    %s $%02X ", addr1, NES_OPS_LUT_SHORT[emu_instr], 0xFF & addr1);
         break;
 
         case nsp::Index_X:
-            emu_line_cursor += sprintf(&emu_line[emu_line_cursor], "%02X %02X %s $%04X,X @ %04X ", (0x00FF & addr1), (0xFF00 & addr1) >> 8, NES_OPS_LUT_SHORT[emu_instr], addr1, (unsigned short)(addr1 + cpu->regs.X));
+            emu_line_cursor += snprintf(&emu_line[emu_line_cursor], 256, "%02X %02X %s $%04X,X @ %04X ", (0x00FF & addr1), (0xFF00 & addr1) >> 8, NES_OPS_LUT_SHORT[emu_instr], addr1, (unsigned short)(addr1 + cpu->regs.X));
         break;
 
         case nsp::Index_Y:
-            emu_line_cursor += sprintf(&emu_line[emu_line_cursor], "%02X %02X %s $%04X,Y @ %04X ", (0x00FF & addr1), (0xFF00 & addr1) >> 8, NES_OPS_LUT_SHORT[emu_instr], addr1, (unsigned short)(addr1 + cpu->regs.Y));
+            emu_line_cursor += snprintf(&emu_line[emu_line_cursor], 256, "%02X %02X %s $%04X,Y @ %04X ", (0x00FF & addr1), (0xFF00 & addr1) >> 8, NES_OPS_LUT_SHORT[emu_instr], addr1, (unsigned short)(addr1 + cpu->regs.Y));
         break;
 
         case nsp::Index_ZP_X:
-            emu_line_cursor += sprintf(&emu_line[emu_line_cursor], "%02X    %s $%02X,X @ %02X ", addr1, NES_OPS_LUT_SHORT[emu_instr], addr1, addr2);
+            emu_line_cursor += snprintf(&emu_line[emu_line_cursor], 256, "%02X    %s $%02X,X @ %02X ", addr1, NES_OPS_LUT_SHORT[emu_instr], addr1, addr2);
         break;
 
         case nsp::Index_ZP_Y:
-            emu_line_cursor += sprintf(&emu_line[emu_line_cursor], "%02X    %s $%02X,Y @ %02X ", addr1, NES_OPS_LUT_SHORT[emu_instr], 0xFF & addr1, addr2);
+            emu_line_cursor += snprintf(&emu_line[emu_line_cursor], 256, "%02X    %s $%02X,Y @ %02X ", addr1, NES_OPS_LUT_SHORT[emu_instr], 0xFF & addr1, addr2);
         break;
 
         case nsp::Indirect:
-            emu_line_cursor += sprintf(&emu_line[emu_line_cursor], "%02X %02X %s ($%04X) = %04X ", (0x00FF & addr1), (0xFF00 & addr1) >> 8, NES_OPS_LUT_SHORT[emu_instr], data, addr2);
+            emu_line_cursor += snprintf(&emu_line[emu_line_cursor], 256, "%02X %02X %s ($%04X) = %04X ", (0x00FF & addr1), (0xFF00 & addr1) >> 8, NES_OPS_LUT_SHORT[emu_instr], data, addr2);
         break;
 
         case nsp::PreIndex_Indirect_X:
-            emu_line_cursor += sprintf(&emu_line[emu_line_cursor], "%02X    %s ($%02X,X) @ %02X = %04X ", addr1, NES_OPS_LUT_SHORT[emu_instr], addr1, (unsigned char)(addr1 + cpu->regs.X), addr2);
+            emu_line_cursor += snprintf(&emu_line[emu_line_cursor], 256, "%02X    %s ($%02X,X) @ %02X = %04X ", addr1, NES_OPS_LUT_SHORT[emu_instr], addr1, (unsigned char)(addr1 + cpu->regs.X), addr2);
         break;
 
         case nsp::PostIndex_Indirect_Y:
-            emu_line_cursor += sprintf(&emu_line[emu_line_cursor], "%02X    %s ($%02X),Y = %04X @ %04X ", addr1, NES_OPS_LUT_SHORT[emu_instr], addr1, addr2, data);
+            emu_line_cursor += snprintf(&emu_line[emu_line_cursor], 256, "%02X    %s ($%02X),Y = %04X @ %04X ", addr1, NES_OPS_LUT_SHORT[emu_instr], addr1, addr2, data);
         break;
 
         case nsp::Relative:
-            emu_line_cursor += sprintf(&emu_line[emu_line_cursor], "%02X    %s $%04X ", addr1, NES_OPS_LUT_SHORT[emu_instr], addr2);
+            emu_line_cursor += snprintf(&emu_line[emu_line_cursor], 256, "%02X    %s $%04X ", addr1, NES_OPS_LUT_SHORT[emu_instr], addr2);
         break;
 
         case nsp::Accumulator:
             data = cpu->regs.A;
         case nsp::No_Address:
         case nsp::Unused:
-            emu_line_cursor += sprintf(&emu_line[emu_line_cursor], "      %s", NES_OPS_LUT_SHORT[emu_instr]);
+            emu_line_cursor += snprintf(&emu_line[emu_line_cursor], 256, "      %s", NES_OPS_LUT_SHORT[emu_instr]);
             break;
 
         default:
@@ -364,12 +364,12 @@ static void tmp_cb_debug_mem_read(uint16_t addr1, uint16_t addr2, uint16_t data)
 
 static void tmp_cb_debug_pre_exec()
 {
-    sprintf(emu_regstate, "A:%02X X:%02X Y:%02X P:%02X SP:%02X PPU:%3d,%3d CYC:%d", cpu->regs.A, cpu->regs.X, cpu->regs.Y, cpu->regs.P, cpu->regs.S, emu->ppu.y, emu->ppu.x, emu_ticks);
+    snprintf(emu_regstate, 256, "A:%02X X:%02X Y:%02X P:%02X SP:%02X PPU:%3d,%3d CYC:%d", cpu->regs.A, cpu->regs.X, cpu->regs.Y, cpu->regs.P, cpu->regs.S, emu->ppu.y, emu->ppu.x, emu_ticks);
 }
 
 static void tmp_cb_debug_post_exec()
 {
-    emu_line_cursor += sprintf(emu_line, "%-48s%s", emu_line, emu_regstate);
+    emu_line_cursor += snprintf(emu_line, 256, "%-48s%s", emu_line, emu_regstate);
 }
 
 static void tmp_cb_debug_instr_done()

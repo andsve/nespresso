@@ -224,7 +224,7 @@ void draw_text(uint32_t x, uint32_t y, const char* text, ...)
     static va_list va;
 
     va_start(va, text);
-    vsprintf(_buffer, text, va);
+    vsnprintf(_buffer, 2048, text, va);
     va_end(va);
 
     char* glyphs = _buffer;
@@ -258,7 +258,7 @@ void draw_text_nt(uint32_t x, uint32_t y, const char* text, ...)
     static va_list va;
 
     va_start(va, text);
-    vsprintf(_buffer, text, va);
+    vsnprintf(_buffer, 2048, text, va);
     va_end(va);
 
     char* glyphs = _buffer;

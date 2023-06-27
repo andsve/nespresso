@@ -39,7 +39,7 @@ void nsp::_log(nsp::LOG_LEVEL level, const char* buffer, ...)
     }
 
     va_start(va, buffer);
-    vsprintf(_buffer, buffer, va);
+    vsnprintf(_buffer, 2048, buffer, va);
     va_end(va);
 
     nsp::cb_log(level, _buffer);
