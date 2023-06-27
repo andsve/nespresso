@@ -27,15 +27,16 @@ namespace nsp
         RIGHT  = 7,
     };
 
+    struct mapper_t;
+
     struct ines_rom_t
     {
         uint8_t prg_page_count;
         uint8_t chr_page_count;
 
-        uint8_t** prg_pages;
-        uint8_t** chr_pages;
-
         uint8_t mirroring;
+
+        mapper_t* mapper;
     };
 
     struct cpu_t
@@ -247,6 +248,8 @@ namespace nsp
         gamepad_t gamepads[2];
         gamepad_t gamepads_latch[2];
         // apu?
+
+        mapper_t* mapper;
     };
 
     RESULT load_rom_file(const char* filepath, ines_rom_t& rom);

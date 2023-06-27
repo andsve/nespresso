@@ -1,10 +1,10 @@
 #include <stdio.h>
 #include <string.h>
 #include <errno.h>
-#include <stdarg.h>
 #include <stdlib.h>
 
 #include "nsp.h"
+#include "nsp_mappers.h"
 #include "nsp_log.h"
 
 // NesDev iNES: https://wiki.nesdev.com/w/index.php/INES
@@ -57,8 +57,6 @@ Details:
 
  // "NES" followed by MS-DOS end-of-file
 static const char _ines_magic[4] = {'N', 'E', 'S', 0x1A};
-static const uint32_t prg_page_size = 16 * 1024;
-static const uint32_t chr_page_size = 8 * 1024;
 
 nsp::RESULT nsp::load_rom_mem(const uint8_t* data, long int size, ines_rom_t& rom)
 {
@@ -75,8 +73,7 @@ nsp::RESULT nsp::load_rom_mem(const uint8_t* data, long int size, ines_rom_t& ro
 
     // Get most relevant data from header byte 6 and 7
     rom.mirroring = data[6] & 0x1;
-    uint8_t mapper_id = (data[6] & 0xF0) >> 4;
-    mapper_id = (data[7] & (0xF0 << 4)) | mapper_id;
+    uint8_t mapper_id = (data[7] & 0xF0) | ((data[6] & 0xF0) >> 4);
     bool ines_v2 = (data[7] & (0x3 << 2)) == 0x08;
 
     if (ines_v2) {
@@ -84,31 +81,16 @@ nsp::RESULT nsp::load_rom_mem(const uint8_t* data, long int size, ines_rom_t& ro
         return RESULT_ERROR;
     }
 
-    if (mapper_id != 0) {
-        LOG_E("Only mapper 0 supported!");
+    if (mapper_id > MAPPERS_COUNT) {
+        LOG_E("Mapper %d not supported!", mapper_id);
         return RESULT_ERROR;
     }
 
-    // Allocate memory to store PRG and CHR data from end of file
-    rom.prg_pages = new uint8_t*[rom.prg_page_count];
-    rom.chr_pages = new uint8_t*[rom.chr_page_count];
+    rom.mapper = MAPPERS_LUT[mapper_id];
 
-    // Copy PRG data
-    const uint8_t* data_ptr = &data[16];
-    for (int i = 0; i < rom.prg_page_count; ++i)
-    {
-        rom.prg_pages[i] = new uint8_t[prg_page_size];
-        memcpy(rom.prg_pages[i], data_ptr, prg_page_size);
-        data_ptr += prg_page_size;
-    }
+    LOG_D("Mapper: %d", rom.mapper->mapper_id);
+    rom.mapper->load_ines_rom(rom, &data[16]);
 
-    // Copy CHR data
-    for (int i = 0; i < rom.chr_page_count; ++i)
-    {
-        rom.chr_pages[i] = new uint8_t[chr_page_size];
-        memcpy(rom.chr_pages[i], data_ptr, chr_page_size);
-        data_ptr += chr_page_size;
-    }
 
     return RESULT_OK;
 }

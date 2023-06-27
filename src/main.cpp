@@ -10,14 +10,16 @@
 #include "ppu_debug.h"
 
 #define NESTEST_PATH "../data/nestest.nes"
+#define VALIDATE_FLAG "-v"
+#define DEBUG_OPS_FLAG "-d"
 
 uint32_t nsp::window_buffer[NES_WIDTH * NES_HEIGHT * 4];
 uint32_t nsp::nt_window_buffer[(32*8*2) * (30*8*2) * 4];
 
 static void draw_spinner(nsp::emu_t& emu)
 {
-    static uint8_t spinner = 0;
-    spinner++;
+    // static uint8_t spinner = 0;
+    // spinner++;
     // fill(0, 0, 4, 4, (spinner % 4 == 0) * 255, 0, 0);
     // fill(4, 0, 4, 4, (spinner % 4 == 1) * 255, 0, 0);
     // fill(4, 4, 4, 4, (spinner % 4 == 2) * 255, 0, 0);
@@ -76,9 +78,16 @@ static void minifb_keyboard_cb(struct mfb_window *window, mfb_key key, mfb_key_m
 int main(int argc, char const *argv[])
 {
     const char* rom_filepath = NESTEST_PATH;
+    bool debug_ops = false;
 
     if (argc > 1) {
-        rom_filepath = argv[1];
+        rom_filepath = argv[argc-1];
+        // if (strncmp(argv[1], VALIDATE_FLAG, sizeof(VALIDATE_FLAG)) == 0) {
+        //     LOG_D("Should validate!");
+        // }
+        if (strncmp(argv[1], DEBUG_OPS_FLAG, sizeof(DEBUG_OPS_FLAG)) == 0) {
+            debug_ops = true;
+        }
     }
 
     bool validate_nestest_log = strncmp(rom_filepath, NESTEST_PATH, sizeof(NESTEST_PATH)) == 0;
@@ -111,6 +120,11 @@ int main(int argc, char const *argv[])
         emu.ppu.x = 21;
         emu.ppu.y = 0;
     } else {
+
+        if (debug_ops) {
+            nsp::attach_nestest_logger(&emu, &emu.cpu, false);
+        }
+
         clear_window_buffer(255, 0, 0);
         clear_nt_window_buffer(255, 0, 0);
         window = mfb_open_ex("nespresso", NES_WIDTH, NES_HEIGHT, WF_RESIZABLE);
@@ -136,7 +150,12 @@ int main(int argc, char const *argv[])
             if (running)
             {
                 // result = nsp::step_emu(emu, 29781); // around 60 NES frames per 60 "real" frames
-                result = nsp::step_emu_until_frame_done(emu);
+                if (debug_ops) {
+                    result = nsp::step_emu(emu, 1);
+                    nsp::validate_nestest();
+                } else {
+                    result = nsp::step_emu_until_frame_done(emu);
+                }
                 if (nsp::RESULT_OK != result) return 1;
             }
 

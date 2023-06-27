@@ -1,6 +1,7 @@
 #include <string.h>
 
 #include "nsp.h"
+#include "nsp_mappers.h"
 #include "nsp_log.h"
 
 nsp::RESULT nsp::init_emu(emu_t& emu, ines_rom_t& ines_rom)
@@ -9,6 +10,8 @@ nsp::RESULT nsp::init_emu(emu_t& emu, ines_rom_t& ines_rom)
     ppu_t& ppu = emu.ppu;
     cpu_t::regs_t& regs = cpu.regs;
     cpu_t::vectors_t& vectors = cpu.vectors;
+
+    emu.mapper = ines_rom.mapper;
 
     // Set emulator in powerup state, see
     // https://wiki.nesdev.com/w/index.php/CPU_power_up_state
@@ -46,26 +49,11 @@ nsp::RESULT nsp::init_emu(emu_t& emu, ines_rom_t& ines_rom)
     ppu.mirroring = ines_rom.mirroring;
 
     // Map PRG ROM
-    if (ines_rom.prg_page_count == 1) {
-        cpu.prgrom_lower = ines_rom.prg_pages[0];
-        cpu.prgrom_upper = ines_rom.prg_pages[0];
-    } else if (ines_rom.prg_page_count == 2) {
-        cpu.prgrom_lower = ines_rom.prg_pages[0];
-        cpu.prgrom_upper = ines_rom.prg_pages[1];
-    } else {
-        LOG_E("TODO: Solve mapping for more than two PRG ROM bank.");
-        return RESULT_ERROR;
-    }
+    cpu.prgrom_lower = emu.mapper->get_initial_lower_prg();
+    cpu.prgrom_upper = emu.mapper->get_initial_upper_prg();
 
     // Map CHR ROM
-    if (ines_rom.chr_page_count == 0) {
-        ppu.chr_rom = new uint8_t[8 * 1024];
-    } else if (ines_rom.chr_page_count == 1) {
-        ppu.chr_rom = ines_rom.chr_pages[0];
-    } else {
-        LOG_E("TODO: Solve mapping for zero or more than one CHR ROM bank.");
-        return RESULT_ERROR;
-    }
+    ppu.chr_rom = emu.mapper->get_initial_chr();
 
     // Try to grab the interrupt vectors
     vectors.NMI = memory_read_short(emu, 0xFFFA);

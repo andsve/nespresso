@@ -1,4 +1,5 @@
 #include "nsp.h"
+#include "nsp_mappers.h"
 #include "nsp_log.h"
 
 /*
@@ -35,6 +36,10 @@ uint8_t nsp::memory_read(emu_t& emu, uint16_t addr, bool peek)
     cpu_t& cpu = emu.cpu;
     bool memmap_reg_handled = false;
     uint8_t memmap_res = handle_memmap_reg_read(emu, addr, &memmap_reg_handled, peek);
+    if (memmap_reg_handled) {
+        return memmap_res;
+    }
+    memmap_res = emu.mapper->handle_mem_read(emu, addr, &memmap_reg_handled, peek);
     if (memmap_reg_handled) {
         return memmap_res;
     }
@@ -88,6 +93,10 @@ uint8_t nsp::memory_write(emu_t& emu, uint16_t addr, uint8_t data)
 
     bool memmap_reg_handled = false;
     prev = handle_memmap_reg_write(emu, addr, data, &memmap_reg_handled);
+    if (memmap_reg_handled) {
+        return prev;
+    }
+    prev = emu.mapper->handle_mem_write(emu, addr, data, &memmap_reg_handled);
     if (memmap_reg_handled) {
         return prev;
     }
