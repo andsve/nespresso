@@ -10,6 +10,7 @@ namespace nsp
         MAPPER_000,
         MAPPER_001,
         MAPPER_002,
+        MAPPER_003,
         MAPPERS_COUNT
     };
 
@@ -34,6 +35,7 @@ namespace nsp
     extern mapper_t MAPPER_IMPL_default;
     struct mapper_001_t;
     struct mapper_002_t;
+    struct mapper_003_t;
 
     // extern nsp::mapper_t nsp::MAPPERS_LUT[256];
     extern mapper_t* MAPPERS_LUT[MAPPERS_COUNT];

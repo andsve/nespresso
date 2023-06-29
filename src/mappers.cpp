@@ -106,12 +106,43 @@ struct nsp::mapper_002_t : nsp::mapper_t
     // uint8_t handle_mem_read(emu_t &emu, uint16_t addr, bool *handled, bool peek) { return 0; };
 };
 
+struct nsp::mapper_003_t : nsp::mapper_t
+{
+    mapper_003_t() {
+        mapper_id = 3;
+    };
+
+
+    uint8_t handle_mem_write(emu_t &emu, uint16_t addr, uint16_t data, bool *handled) override {
+        /*
+            Bank select ($8000-$FFFF)
+
+            7  bit  0
+            ---- ----
+            cccc ccCC
+            |||| ||||
+            ++++-++++- Select 8 KB CHR ROM bank for PPU $0000-$1FFF
+        */
+        if (addr >= 0x8000 && addr <= 0xFFFF) {
+            *handled = true;
+
+            uint8_t bank = 0b00000011 & data;
+            emu.ppu.chr_rom = chr_pages[bank];
+
+            return 0;
+        }
+        return 0;
+    };
+};
+
 nsp::mapper_t nsp::MAPPER_IMPL_default;
 static nsp::mapper_001_t MAPPER_IMPL_001;
 static nsp::mapper_002_t MAPPER_IMPL_002;
+static nsp::mapper_003_t MAPPER_IMPL_003;
 
 nsp::mapper_t* nsp::MAPPERS_LUT[MAPPERS_COUNT] = {
     &MAPPER_IMPL_default,
     &MAPPER_IMPL_001,
     &MAPPER_IMPL_002,
+    &MAPPER_IMPL_003,
 };
