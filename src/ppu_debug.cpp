@@ -39,7 +39,6 @@ inline uint8_t palette_id_to_blue(uint32_t id) {
     return color_2c02[id*3+2];
 }
 
-
 static bool ppu_get_chr(nsp::emu_t& emu, uint16_t addr, uint8_t* out_data, bool bg)
 {
     if (!emu.ppu.chr_rom) {
@@ -52,7 +51,8 @@ static bool ppu_get_chr(nsp::emu_t& emu, uint16_t addr, uint8_t* out_data, bool 
             chr_offset = 0x1000;
         }
     } else {
-        if ((emu.ppu.ppuctrl >> 3) & 0x1) {
+        bool is_8x16 = ((emu.ppu.ppuctrl >> 5) & 0b1) == 0b1;
+        if (is_8x16 && (emu.ppu.ppuctrl >> 3) & 0x1) {
             chr_offset = 0x1000;
         }
     }
@@ -93,6 +93,9 @@ static bool ppu_get_chr(nsp::emu_t& emu, uint16_t addr, uint8_t* out_data, bool 
 
 static void blit_chr(nsp::emu_t& emu, uint32_t blit_x, uint32_t blit_y, uint32_t chr_index, bool bg, bool flip_x, bool flip_y, uint8_t* palette_set)
 {
+    // bool is_8x16 = !bg && ((emu.ppu.ppuctrl >> 5) & 0b1) == 0b1;
+    // uint8_t sprite_height = is_8x16 ? 16 : 8;
+
     uint8_t chr[8*8];
     if (!ppu_get_chr(emu, chr_index*16, chr, bg))
     {
@@ -248,6 +251,8 @@ void dump_ppu_vram(nsp::emu_t& emu)
 
 void dump_ppu_sprites(nsp::emu_t& emu)
 {
+    bool is_8x16 = ((emu.ppu.ppuctrl >> 5) & 0b1) == 0b1;
+
     static uint8_t palette_set[3];
     for (uint32_t sprite_i = 0; sprite_i < 64; ++sprite_i)
     {
@@ -266,6 +271,10 @@ void dump_ppu_sprites(nsp::emu_t& emu)
         palette_set[2] = emu.ppu.palette[0x13+palette_id*4];
 
         blit_chr(emu, sprite_data3, sprite_data0+1, sprite_data1, false, flip_x, flip_y, palette_set);
+
+        if (is_8x16) {
+            blit_chr(emu, sprite_data3, sprite_data0+1+8, sprite_data1+1, false, flip_x, flip_y, palette_set);
+        }
     }
 }
 

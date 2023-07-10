@@ -33,7 +33,7 @@ namespace nsp
     {
         uint8_t prg_page_count;
         uint8_t chr_page_count;
-
+        uint8_t ram_size;
         uint8_t mirroring;
 
         mapper_t* mapper;
@@ -85,6 +85,7 @@ namespace nsp
         // RAM and Stack
         uint8_t ram[0x700];
         uint8_t stack[0x100];
+        uint8_t* prg_ram;
 
         // Currently mapped prg rom banks
         uint8_t* prgrom_lower;
@@ -132,6 +133,7 @@ namespace nsp
     struct ppu_t
     {
         // most important registers to get up and running
+        uint8_t write_only_latch;
         uint8_t ppuctrl;
         // uint8_t ppumask;
         union {

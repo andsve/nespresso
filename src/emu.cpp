@@ -55,6 +55,9 @@ nsp::RESULT nsp::init_emu(emu_t& emu, ines_rom_t& ines_rom)
     // Map CHR ROM
     ppu.chr_rom = emu.mapper->get_initial_chr();
 
+    // Setup PRG RAM
+    cpu.prg_ram = new uint8_t[(ines_rom.ram_size > 0 ? ines_rom.ram_size : 1) * 8 * 1024];
+
     // Try to grab the interrupt vectors
     vectors.NMI = memory_read_short(emu, 0xFFFA);
     vectors.RESET = memory_read_short(emu, 0xFFFC);

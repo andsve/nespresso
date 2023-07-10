@@ -127,8 +127,8 @@ int main(int argc, char const *argv[])
 
         clear_window_buffer(255, 0, 0);
         clear_nt_window_buffer(255, 0, 0);
-        window = mfb_open_ex("nespresso", NES_WIDTH, NES_HEIGHT, WF_RESIZABLE);
         nt_window = mfb_open_ex("nametables", 32*8*2, 30*8*2, WF_RESIZABLE);
+        window = mfb_open_ex("nespresso", NES_WIDTH, NES_HEIGHT, WF_RESIZABLE);
         mfb_set_user_data(window, (void*)&emu);
         mfb_set_keyboard_callback(window, minifb_keyboard_cb);
     }
@@ -149,12 +149,12 @@ int main(int argc, char const *argv[])
         {
             if (running)
             {
-                // result = nsp::step_emu(emu, 29781); // around 60 NES frames per 60 "real" frames
                 if (debug_ops) {
                     result = nsp::step_emu(emu, 1);
                     nsp::validate_nestest();
                 } else {
-                    result = nsp::step_emu_until_frame_done(emu);
+                    result = nsp::step_emu(emu, 29781); // around 60 NES frames per 60 "real" frames
+                    // result = nsp::step_emu_until_frame_done(emu);
                 }
                 if (nsp::RESULT_OK != result) return 1;
             }

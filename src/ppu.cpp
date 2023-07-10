@@ -392,7 +392,7 @@ bool nsp::ppu_sprite_pipeline(emu_t& emu)
     uint16_t& x = ppu.x;
     uint16_t& y = ppu.y;
 
-    // onlt done during visible frames
+    // only done during visible frames
     if (y >= 240) {
         return false;
     }
@@ -520,8 +520,21 @@ bool nsp::ppu_sprite_pipeline(emu_t& emu)
                 ppu.oam_buffer[ppu.oam_buffer_counter*4] = prim_oam_b0;
 
                 // 1a) check if y position is in range
-                if (y >= prim_oam_b0 && y <= prim_oam_b0 + 7)
+                bool is_8x16 = ((ppu.ppuctrl >> 5) & 0b1) == 0b1;
+                // if (y >= prim_oam_b0 && y <= prim_oam_b0 + 7)
+                if (y >= prim_oam_b0 && y <= prim_oam_b0 + (is_8x16 ? 15 : 7))
                 {
+                    if (is_8x16 && y > prim_oam_b0 + 7) {
+                        // LOG_D("SHOULD NOT SEE THIS");
+                        ppu.oam_buffer[ppu.oam_buffer_counter*4] += 8;
+                        // if ((prim_oam_b1 & 0b1) == 0b1) {
+                        //     prim_oam_b1 &= ~0b1;
+                        // } else {
+                        //     prim_oam_b1 |= 0b1;
+                        // }
+                        // prim_oam_b1 += 0b10;
+                        prim_oam_b1 += 0b1;
+                    }
                     // if (ppu.oam_read_n == 0) {
                     //     LOG_D("sprite zero Y: %d [tile: %d]", prim_oam_b0, prim_oam_b1);
                     // }
@@ -639,17 +652,25 @@ bool nsp::ppu_sprite_pipeline(emu_t& emu)
                 bool flip_y = !!(sprite_data2 & (1 << 7));
                 // bool prio = !!(sprite_data2 & (1 << 7));
 
+                uint8_t tile_index = sprite_data1; // 8x16
+
                 // fill sprite_shift_reg0 and sprite_shift_reg1 with pattern data
                 uint16_t chr_offset = 0x0;
-                if ((emu.ppu.ppuctrl >> 3) & 0x1) {
-                    chr_offset = 0x1000;
+                bool is_8x16 = ((ppu.ppuctrl >> 5) & 0b1) == 0b1;
+                if (is_8x16) {
+                    // chr_offset = (tile_index & 0b1) == 0b1 ? 0x1000 : 0x0;
+                    // tile_index = tile_index >> 1;
+                    // tile_index = tile_index & ~0b1;
+                } else {
+                    if ((emu.ppu.ppuctrl >> 3) & 0x1) {
+                        chr_offset = 0x1000;
+                    }
                 }
 
                 uint8_t y_offset = (y - sprite_data0);
                 if (flip_y) {
                     y_offset = 7 - y_offset;
                 }
-                uint8_t tile_index = sprite_data1;
                 uint8_t* chr_data = (uint8_t*)emu.ppu.chr_rom+(tile_index*16)+chr_offset+y_offset;
 
                 // clear reg
@@ -849,6 +870,7 @@ uint8_t nsp::ppu_reg_write(emu_t& emu, uint16_t addr, uint8_t data)
 
             // After power/reset, writes to this register are ignored for about 30,000 cycles.
             if (ppu.cycles / 3 < 27384) {
+                ppu.write_only_latch = t;
                 return t;
             }
             ppu.ppuctrl = data;
@@ -858,6 +880,7 @@ uint8_t nsp::ppu_reg_write(emu_t& emu, uint16_t addr, uint8_t data)
             //    <used elsewhere> <- d: ABCDEF..
             ppu.LoopyT.nt = data & 0b11;
 
+            ppu.write_only_latch = data;
             return t;
         }
         case 0x2001:
@@ -878,12 +901,14 @@ uint8_t nsp::ppu_reg_write(emu_t& emu, uint16_t addr, uint8_t data)
             */
             uint8_t t = ppu.ppumask.val;
             ppu.ppumask.val = data;
+            ppu.write_only_latch = data;
             return t;
         }
         case 0x2003:
         {
             uint8_t t = ppu.oamaddr;
             ppu.oamaddr = data;
+            ppu.write_only_latch = data;
             return t;
         }
         case 0x2004:
@@ -891,6 +916,7 @@ uint8_t nsp::ppu_reg_write(emu_t& emu, uint16_t addr, uint8_t data)
             uint8_t t = ppu.oam[ppu.oamaddr];
             ppu.oam[ppu.oamaddr] = data;
             ppu.oamaddr++;
+            ppu.write_only_latch = data;
             return t;
         }
         case 0x2005:
@@ -922,7 +948,7 @@ uint8_t nsp::ppu_reg_write(emu_t& emu, uint16_t addr, uint8_t data)
                 emu.force_green = true;
             }
 
-
+            ppu.write_only_latch = data;
             return prev;
         }
         case 0x2006:
@@ -950,6 +976,8 @@ uint8_t nsp::ppu_reg_write(emu_t& emu, uint16_t addr, uint8_t data)
                 ppu.scroll_toggle = 0;
             }
 
+            ppu.write_only_latch = data;
+
             uint8_t prev = 0x0;
             return prev;
         }
@@ -970,6 +998,7 @@ uint8_t nsp::ppu_reg_write(emu_t& emu, uint16_t addr, uint8_t data)
                 addr = addr % 0x3F00;
             }
             ppu.LoopyV.val = addr;
+            ppu.write_only_latch = data;
             return 0x0;
         }
         case 0x4014:
@@ -999,6 +1028,19 @@ uint8_t nsp::ppu_write_vram(emu_t& emu, uint16_t addr, uint8_t data)
 {
     ppu_t& ppu = emu.ppu;
 
+    // if (addr >= 0x4000) {
+    //     LOG_E("WRITING OUTSIDE PPU MEM: 0x%04x", addr);
+    // }
+    addr = addr % 0x4000;
+    /*
+      14-bit
+        11 1111 1111 1111
+        00 0000 0000 0000
+
+      16-bit
+      0000 0000 0000 0000
+    */
+
     if (addr < 0x2000) // pattern tables
     {
         uint8_t old_data = ppu.chr_rom[addr];
@@ -1008,7 +1050,7 @@ uint8_t nsp::ppu_write_vram(emu_t& emu, uint16_t addr, uint8_t data)
 
     } else if (addr < 0x3F00) { // nametables
         uint16_t t_addr = addr - 0x2000;
-        if (ppu.mirroring == 0) {
+        if (ppu.mirroring == 0) { // horizontal
             if (addr < 0x2800) {
                 t_addr = t_addr % 0x400;
             } else {
@@ -1047,13 +1089,18 @@ uint8_t nsp::ppu_read_vram(emu_t& emu, uint16_t addr)
 {
     ppu_t& ppu = emu.ppu;
 
+    // if (addr >= 0x4000) {
+    //     LOG_E("READING OUTSIDE PPU MEM: 0x%04x", addr);
+    // }
+    addr = addr % 0x4000;
+
     if (addr < 0x2000) // pattern tables
     {
         return ppu.chr_rom[addr];
 
     } else if (addr < 0x3F00) { // nametables
         uint16_t t_addr = addr - 0x2000;
-        if (ppu.mirroring == 0) {
+        if (ppu.mirroring == 0) { // horizontal
             if (addr < 0x2800) {
                 t_addr = t_addr % 0x400;
             } else {
@@ -1089,11 +1136,13 @@ uint8_t nsp::ppu_reg_read(emu_t &emu, uint16_t addr, bool peek)
     switch (addr) {
         case 0x2000:
         {
-            return ppu.ppuctrl;
+            return ppu.write_only_latch;
+            // return ppu.ppuctrl;
         }
         case 0x2001:
         {
-            return ppu.ppumask.val;
+            return ppu.write_only_latch;
+            // return ppu.ppumask.val;
         }
         case 0x2002:
         {
@@ -1133,11 +1182,20 @@ uint8_t nsp::ppu_reg_read(emu_t &emu, uint16_t addr, bool peek)
         }
         case 0x2003:
         {
-            return ppu.oamaddr;
+            // return ppu.oamaddr;
+            return ppu.write_only_latch;
         }
         case 0x2004:
         {
             return ppu.oam[ppu.oamaddr];
+        }
+        case 0x2005:
+        {
+            return ppu.write_only_latch;
+        }
+        case 0x2006:
+        {
+            return ppu.write_only_latch;
         }
         case 0x2007:
         {

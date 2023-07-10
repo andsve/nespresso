@@ -71,10 +71,19 @@ nsp::RESULT nsp::load_rom_mem(const uint8_t* data, long int size, ines_rom_t& ro
     rom.prg_page_count = data[4];
     rom.chr_page_count = data[5];
 
+    bool has_prg_ram = ((data[6] >> 1) & 0b1) == 0b1;
+    LOG_D("Has PRG RAM: %d", has_prg_ram);
+
     // Get most relevant data from header byte 6 and 7
     rom.mirroring = data[6] & 0x1;
+    LOG_D("Mirroring: %d", rom.mirroring);
     uint8_t mapper_id = (data[7] & 0xF0) | ((data[6] & 0xF0) >> 4);
     bool ines_v2 = (data[7] & (0x3 << 2)) == 0x08;
+
+    // Get PRG RAM size
+    rom.ram_size = data[8];
+    // uint8_t ram_available = (0b1) & (data[10] >> 4);
+    LOG_D("RAM size: %d", rom.ram_size);
 
     if (ines_v2) {
         LOG_E("No support for iNES v2!");

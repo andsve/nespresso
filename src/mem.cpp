@@ -167,6 +167,10 @@ uint8_t nsp::handle_memmap_reg_write(emu_t &emu, uint16_t addr, uint16_t data, b
 {
     *handled = false;
 
+    if (addr >= 0x2000 && addr <= 0x3FFF) {
+        addr = (addr - 0x2000) % 8 + 0x2000;
+    }
+
     if ((addr >= 0x2000 && addr <= 0x2007) || addr == 0x4014) {
         *handled = true;
         return ppu_reg_write(emu, addr, data);
@@ -190,6 +194,10 @@ uint8_t nsp::handle_memmap_reg_write(emu_t &emu, uint16_t addr, uint16_t data, b
 uint8_t nsp::handle_memmap_reg_read(emu_t &emu, uint16_t addr, bool *handled, bool peek)
 {
     *handled = false;
+
+    if (addr >= 0x2000 && addr <= 0x3FFF) {
+        addr = (addr - 0x2000) % 8 + 0x2000;
+    }
 
     if ((addr >= 0x2000 && addr <= 0x2007) || addr == 0x4014) {
         *handled = true;
