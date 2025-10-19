@@ -33,7 +33,7 @@ void nsp::mapper_t::load_ines_rom(ines_rom_t& rom, const uint8_t* rom_data) {
 
     if (chr_page_count == 0) {
         LOG_D("No CHR pages - creating 8k empty");
-        chr_pages[0] = new uint8_t[8 * 1024];
+        chr_pages[0] = new uint8_t[chr_page_size];
     }
 }
 
@@ -69,11 +69,14 @@ struct nsp::mapper_001_t : nsp::mapper_t
     uint8_t MMC1_chr2;
     uint8_t MMC1_prg;
 
+    uint8_t* MMC1_ram;
+
     mapper_001_t() {
         mapper_id = 1;
         // shift_reg = 0x0;
         MMC1_SR = 0b00010000;
         MMC1_PB = 0x00;
+        MMC1_ram = new uint8_t[8 * 1024];
     };
 
     uint8_t* get_initial_lower_prg() override
@@ -162,6 +165,25 @@ struct nsp::mapper_001_t : nsp::mapper_t
                         LOG_D("MMC1 - PRG Bank Mode: %d", prg_rom_bank_mode);
                         LOG_D("MMC1 - CHR Bank Mode: %d", chr_rom_bank_mode);
 
+                        // update mirroring
+                        switch (mirroring) {
+                            // 0: one-screen, lower bank; 1: one-screen, upper bank
+                            case 0:
+                            case 1:
+                                LOG_E("Mirroring ONE SCREEN not supported!");
+                                break;
+
+                            // vertical
+                            case 2:
+                                emu.ppu.mirroring = 1;
+                                break;
+
+                            // horizontal
+                            case 3:
+                                emu.ppu.mirroring = 0;
+                                break;
+                        }
+
                         switch (prg_rom_bank_mode) {
                             case 2:
                                 // 2: fix first bank at $8000 and switch 16 KB bank at $C000;
@@ -196,6 +218,8 @@ struct nsp::mapper_001_t : nsp::mapper_t
                         */
                         uint8_t bank_select = MMC1_PB;
                         if (chr_rom_bank_mode == 0) {
+                            // 8kb bank
+                            bank_select >>= 1;
                             LOG_D("MMC1 - CHR bank 0 switch: %d", bank_select);
                             emu.ppu.chr_rom = chr_pages[bank_select];
                         } else {
@@ -240,10 +264,10 @@ struct nsp::mapper_001_t : nsp::mapper_t
                         }
 
                         if (prg_rom_bank_mode == 3) {
-                            LOG_D("MMC1 - PRG bank switch: %d", bank_select);
+                            // LOG_D("MMC1 - PRG bank switch: %d", bank_select);
                             emu.cpu.prgrom_lower = prg_pages[bank_select];
                         } else if (prg_rom_bank_mode == 2) {
-                            LOG_D("MMC1 - PRG bank switch: %d", bank_select);
+                            // LOG_D("MMC1 - PRG bank switch: %d", bank_select);
                             emu.cpu.prgrom_upper = prg_pages[bank_select];
                         } else {
                             LOG_E("NOT IMPL - PRG bank switching mode not supported: %d", prg_rom_bank_mode);
@@ -259,7 +283,31 @@ struct nsp::mapper_001_t : nsp::mapper_t
         //     emu.cpu.prgrom_lower = prg_pages[bank];
 
             return 0;
+        } else if (addr >= 0x4020 && addr <= 0x5FFF) {
+            // Expansion ROM
+            *handled = true;
+            LOG_E("Mapper 001 not handling Expansion ROM currently (WRITE)!");
+        } else if (addr >= 0x6000 && addr <= 0x7FFF) {
+            // SRAM 8KB
+            *handled = true;
+            MMC1_ram[addr-0x6000] = uint8_t(0xFFFF & data);
         }
+        return 0;
+    };
+
+    uint8_t handle_mem_read(emu_t &emu, uint16_t addr, bool *handled, bool peek) override {
+
+
+        if (addr >= 0x4020 && addr <= 0x5FFF) {
+            // Expansion ROM
+            *handled = true;
+            LOG_E("Mapper 001 not handling Expansion ROM currently (READ)!");
+        } else if (addr >= 0x6000 && addr <= 0x7FFF) {
+            // SRAM 8KB
+            *handled = true;
+            return MMC1_ram[addr-0x6000];
+        }
+
         return 0;
     };
 };

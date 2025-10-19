@@ -498,7 +498,7 @@ bool nsp::ppu_sprite_pipeline(emu_t& emu)
         // ppu.sprite0_included = false;
         ppu.next_scanline_includes_sprite0 = false;
 
-    } else if (x >= 65 && x <= 256) {
+    } else if (x >= 65 && x <= 256) { // Sprite eval for next scanline
         if (x == 65) {
             ppu.oam_read_n = 0;
             ppu.oam_read_m = 0;
@@ -517,23 +517,51 @@ bool nsp::ppu_sprite_pipeline(emu_t& emu)
                 uint8_t prim_oam_b3 = ppu.oam[ppu.oam_read_n*4+3]; // x
 
                 // 1) copy y data from primary to secondary OAM
-                ppu.oam_buffer[ppu.oam_buffer_counter*4] = prim_oam_b0;
+                ppu.oam_buffer[ppu.oam_buffer_counter*4+0] = prim_oam_b0;
 
                 // 1a) check if y position is in range
                 bool is_8x16 = ((ppu.ppuctrl >> 5) & 0b1) == 0b1;
+                // bool flip_x = !!(prim_oam_b2 & (1 << 6));
+                bool flip_y = !!(prim_oam_b2 & (1 << 7));
+                bool inside_sprite = y >= prim_oam_b0 && y <= prim_oam_b0 + (is_8x16 ? 15 : 7);
+                bool rendered_past_tile_0 = y > prim_oam_b0 + 7;
+
+                if (is_8x16 && inside_sprite)
+                {
+                    if (flip_y) {
+                        if (rendered_past_tile_0) {
+                            ppu.oam_buffer[ppu.oam_buffer_counter*4+0] += 8;
+                        } else {
+                            ppu.oam_buffer[ppu.oam_buffer_counter*4+0] += 16;
+                        }
+                    } else {
+                        if (rendered_past_tile_0) {
+                            ppu.oam_buffer[ppu.oam_buffer_counter*4+0] -= 8;
+                        }
+                    }
+                }
+
+
                 // if (y >= prim_oam_b0 && y <= prim_oam_b0 + 7)
-                if (y >= prim_oam_b0 && y <= prim_oam_b0 + (is_8x16 ? 15 : 7))
+                if (inside_sprite)
                 {
                     if (is_8x16 && y > prim_oam_b0 + 7) {
+
+                        // chr_offset = (tile_index & 0b1) == 0b1 ? 0x1000 : 0x0;
+                        // tile_index = tile_index >> 1;
+                        // tile_index = tile_index & ~0b1;
+
                         // LOG_D("SHOULD NOT SEE THIS");
-                        ppu.oam_buffer[ppu.oam_buffer_counter*4] += 8;
+
+                        // ppu.oam_buffer[ppu.oam_buffer_counter*4+0] -= 8;
+
                         // if ((prim_oam_b1 & 0b1) == 0b1) {
                         //     prim_oam_b1 &= ~0b1;
                         // } else {
                         //     prim_oam_b1 |= 0b1;
                         // }
                         // prim_oam_b1 += 0b10;
-                        prim_oam_b1 += 0b1;
+                        // prim_oam_b1 += 0b1;
                     }
                     // if (ppu.oam_read_n == 0) {
                     //     LOG_D("sprite zero Y: %d [tile: %d]", prim_oam_b0, prim_oam_b1);
@@ -658,9 +686,9 @@ bool nsp::ppu_sprite_pipeline(emu_t& emu)
                 uint16_t chr_offset = 0x0;
                 bool is_8x16 = ((ppu.ppuctrl >> 5) & 0b1) == 0b1;
                 if (is_8x16) {
-                    // chr_offset = (tile_index & 0b1) == 0b1 ? 0x1000 : 0x0;
+                    chr_offset = (tile_index & 0b1) == 0b1 ? 0x1000 : 0x0;
                     // tile_index = tile_index >> 1;
-                    // tile_index = tile_index & ~0b1;
+                    tile_index = tile_index & ~0b1;
                 } else {
                     if ((emu.ppu.ppuctrl >> 3) & 0x1) {
                         chr_offset = 0x1000;
